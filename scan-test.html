@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>바코드 스캔 테스트</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: #0a0f1e;
+      color: #dde8f5;
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 16px;
+    }
+
+    h1 { font-size: 20px; font-weight: 900; }
+
+    /* 상태 배지 */
+    #status {
+      font-size: 13px;
+      padding: 8px 20px;
+      border-radius: 100px;
+      background: #111d30;
+      border: 1px solid #243a58;
+      color: #4a6688;
+      text-align: center;
+      width: 100%;
+      max-width: 480px;
+    }
+    #status.ready  { color: #00d4aa; border-color: rgba(0,212,170,0.3); }
+    #status.scan   { color: #38bdf8; border-color: rgba(56,189,248,0.3); }
+    #status.err    { color: #ff5c7a; border-color: rgba(255,92,122,0.3); }
+
+    /* 카메라 영역 */
+    #reader-wrap {
+      width: 100%;
+      max-width: 480px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1.5px solid #243a58;
+      background: #000;
+      position: relative;
+      min-height: 200px;
+    }
+
+    #qr-reader { width: 100% !important; }
+    #qr-reader video { width: 100% !important; display: block; }
+    #qr-reader__scan_region { background: transparent !important; }
+    #qr-reader__dashboard   { display: none !important; }
+    #qr-reader img          { display: none !important; }
+
+    /* 카메라 선택 (후면/전면) */
+    .cam-btns {
+      display: flex; gap: 8px;
+      width: 100%; max-width: 480px;
+    }
+
+    .cam-btn {
+      flex: 1; padding: 12px;
+      background: #111d30; border: 1px solid #243a58;
+      color: #dde8f5; border-radius: 10px;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cam-btn:active { background: #1c2e48; }
+    .cam-btn.active { background: rgba(0,212,170,0.15); border-color: #00d4aa; color: #00d4aa; }
+
+    /* 결과 로그 */
+    .log-title {
+      width: 100%; max-width: 480px;
+      font-size: 12px; color: #4a6688;
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+
+    #log {
+      width: 100%; max-width: 480px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .log-item {
+      background: #111d30;
+      border: 1px solid #1c2e48;
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .log-item .format {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(0,212,170,0.12);
+      color: #00d4aa;
+      padding: 3px 8px; border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .log-item .value {
+      font-family: monospace; font-size: 16px;
+      font-weight: 700; letter-spacing: 1px;
+      flex: 1; word-break: break-all;
+    }
+
+    .log-item .time {
+      font-size: 11px; color: #4a6688;
+      flex-shrink: 0; font-family: monospace;
+    }
+
+    .empty-log {
+      color: #2d4460; font-size: 14px; text-align: center;
+      padding: 24px;
+    }
+
+    /* 클리어 버튼 */
+    #btn-clear {
+      width: 100%; max-width: 480px;
+      padding: 12px; background: transparent;
+      border: 1px solid #1c2e48; border-radius: 10px;
+      color: #4a6688; font-size: 13px; cursor: pointer;
+    }
+    #btn-clear:active { background: #111d30; }
+
+    /* 디버그 영역 */
+    #debug {
+      width: 100%; max-width: 480px;
+      background: #0d1424; border: 1px solid #1c2e48;
+      border-radius: 10px; padding: 12px 14px;
+      font-size: 11px; color: #4a6688;
+      font-family: monospace; line-height: 1.6;
+      display: none;
+    }
+    #debug.show { display: block; }
+    #btn-debug {
+      font-size: 11px; color: #2d4460;
+      background: none; border: none; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📷 바코드 스캔 테스트</h1>
+
+<div id="status">카메라 시작 중...</div>
+
+<div class="cam-btns">
+  <button class="cam-btn active" id="btn-back" onclick="switchCam('environment')">🔙 후면 카메라</button>
+  <button class="cam-btn"        id="btn-front" onclick="switchCam('user')">🤳 전면 카메라</button>
+</div>
+
+<div id="reader-wrap">
+  <div id="qr-reader"></div>
+</div>
+
+<div class="log-title">스캔 결과</div>
+
+<div id="log">
+  <div class="empty-log">바코드를 카메라에 비춰주세요</div>
+</div>
+
+<button id="btn-clear" onclick="clearLog()">기록 초기화</button>
+
+<button id="btn-debug" onclick="toggleDebug()">디버그 정보 보기</button>
+<div id="debug"></div>
+
+<script>
+  let scanner   = null;
+  let scanCount = 0;
+  let logItems  = [];
+  let curFacing = "environment";
+
+  const FORMATS = [
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.DATA_MATRIX,
+    Html5QrcodeSupportedFormats.ITF,
+  ];
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = cls || "";
+  }
+
+  async function startScanner(facing) {
+    // 이미 실행 중이면 먼저 중단
+    if (scanner) {
+      try { await scanner.stop(); } catch(_) {}
+      scanner = null;
+    }
+
+    document.getElementById("qr-reader").innerHTML = "";
+    setStatus("카메라 연결 중...", "");
+
+    try {
+      scanner = new Html5Qrcode("qr-reader");
+
+      await scanner.start(
+        { facingMode: facing },
+        {
+          fps: 15,
+          qrbox: { width: 280, height: 150 },
+          aspectRatio: 16 / 9,
+          formatsToSupport: FORMATS,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        },
+        onSuccess,
+        onFail
+      );
+
+      setStatus("✅ 카메라 연결됨 — 바코드를 비춰주세요", "ready");
+      addDebug("카메라 시작 성공: " + facing);
+
+    } catch (err) {
+      setStatus("❌ 카메라 오류: " + err, "err");
+      addDebug("에러: " + err);
+
+      // HTTPS 아닌 경우 안내
+      if (location.protocol !== "https:" && location.hostname !== "localhost") {
+        setStatus("❌ HTTPS 필요 — 아래 안내 확인", "err");
+        addDebug("⚠️ 현재 프로토콜: " + location.protocol + " → 카메라는 HTTPS에서만 동작");
+        document.getElementById("debug").classList.add("show");
+      }
+    }
+  }
+
+  let lastCode = "";
+  let lastAt   = 0;
+
+  function onSuccess(code, result) {
+    const now = Date.now();
+    // 3초 내 같은 코드 중복 무시
+    if (code === lastCode && now - lastAt < 3000) return;
+    lastCode = code;
+    lastAt   = now;
+
+    const format = result.result?.format?.formatName || "UNKNOWN";
+    addLog(code, format);
+    addDebug(`스캔: [${format}] ${code}`);
+  }
+
+  function onFail() { /* 인식 중 오류는 무시 */ }
+
+  function addLog(code, format) {
+    scanCount++;
+    const now = new Date().toLocaleTimeString("ko-KR", { hour12:false });
+
+    logItems.unshift({ code, format, time: now });
+    if (logItems.length > 20) logItems.pop();
+
+    renderLog();
+  }
+
+  function renderLog() {
+    if (logItems.length === 0) {
+      document.getElementById("log").innerHTML =
+        '<div class="empty-log">바코드를 카메라에 비춰주세요</div>';
+      return;
+    }
+
+    document.getElementById("log").innerHTML = logItems.map(item => `
+      <div class="log-item">
+        <span class="format">${item.format}</span>
+        <span class="value">${item.code}</span>
+        <span class="time">${item.time}</span>
+      </div>`).join("");
+  }
+
+  function clearLog() {
+    logItems = []; scanCount = 0;
+    renderLog();
+  }
+
+  async function switchCam(facing) {
+    curFacing = facing;
+    document.getElementById("btn-back").className  = "cam-btn" + (facing === "environment" ? " active" : "");
+    document.getElementById("btn-front").className = "cam-btn" + (facing === "user"        ? " active" : "");
+    await startScanner(facing);
+  }
+
+  function addDebug(msg) {
+    const el = document.getElementById("debug");
+    const line = `[${new Date().toLocaleTimeString("ko-KR",{hour12:false})}] ${msg}`;
+    el.textContent = line + "\n" + el.textContent;
+  }
+
+  function toggleDebug() {
+    document.getElementById("debug").classList.toggle("show");
+  }
+
+  // 시작
+  startScanner("environment");
+</script>
+</body>
+</html>
