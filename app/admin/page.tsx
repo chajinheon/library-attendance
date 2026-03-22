@@ -759,7 +759,7 @@ export default function AdminPage() {
   }, []);
 
   // ── Firebase queries ──
-  const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
+  const studentsQuery = useMemoFirebase(() => db ? query(collection(db, 'students')) : null, [db]);
   const { data: students = [] } = useCollection<Student>(studentsQuery);
 
   const attendanceQuery = useMemoFirebase(
