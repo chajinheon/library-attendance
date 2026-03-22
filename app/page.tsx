@@ -167,11 +167,11 @@ export default function Home() {
 
   useEffect(() => {
     if (isScannerActive) {
-      const html5QrCode = new Html5Qrcode("qr-reader");
+      const html5QrCode = new Html5Qrcode("qr-reader", { formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128] });
       scannerInstanceRef.current = html5QrCode;
       html5QrCode.start(
         { facingMode: "user" },
-        { fps: 10, qrbox: { width: 400, height: 150 }, formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128] },
+        { fps: 10, qrbox: { width: 400, height: 150 } },
         (t) => processCheckIn(t, true),
         (errMsg) => {
           if (errMsg?.includes('NotAllowedError') || errMsg?.includes('Permission') || errMsg?.includes('permission')) {
