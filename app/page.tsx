@@ -82,7 +82,7 @@ export default function Home() {
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
   }, [input, isScannerActive]);
 
-  const studentsQuery = useMemoFirebase(() => db ? query(collection(db, 'students')) : null, [db]);
+  const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
   const { data: dbStudents = [] } = useCollection<Student>(studentsQuery);
 
   const attendanceQuery = useMemoFirebase(() => today && db ? query(collection(db, 'attendance_logs'), where('date', '==', today)) : null, [db, today]);

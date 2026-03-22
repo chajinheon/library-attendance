@@ -16,7 +16,7 @@ import { ko } from 'date-fns/locale';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import {
   collection, query, where, doc, getDoc, getDocs, setDoc,
-  deleteDoc, writeBatch, serverTimestamp, orderBy, limit, Query
+  deleteDoc, writeBatch, serverTimestamp, orderBy, limit
 } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -759,26 +759,26 @@ export default function AdminPage() {
   }, []);
 
   // ── Firebase queries ──
-  const studentsQuery = useMemoFirebase(() => db ? query(collection(db, 'students')) as Query<Student> : null, [db]);
+  const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
   const { data: students = [] } = useCollection<Student>(studentsQuery);
 
   const attendanceQuery = useMemoFirebase(
-    () => today && db ? query(collection(db, 'attendance_logs'), where('date', '==', today)) as Query<AttendanceEntry> : null,
+    () => today && db ? query(collection(db, 'attendance_logs'), where('date', '==', today)) : null,
     [db, today]
   );
   const { data: todayAttendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
 
   const historyQuery = useMemoFirebase(
-    () => historyDate && db ? query(collection(db, 'attendance_logs'), where('date', '==', historyDate)) as Query<AttendanceEntry> : null,
+    () => historyDate && db ? query(collection(db, 'attendance_logs'), where('date', '==', historyDate)) : null,
     [db, historyDate]
   );
   const { data: historyAttendance = [] } = useCollection<AttendanceEntry>(historyQuery);
 
-  const barcodesQuery = useMemoFirebase(() => db ? query(collection(db, 'barcode_mappings')) as Query<BarcodeMapping & { id: string }> : null, [db]);
+  const barcodesQuery = useMemoFirebase(() => db ? collection(db, 'barcode_mappings') : null, [db]);
 
   type CardScan = { id: string; studentId: string; studentName: string; grade: number; point: number };
   const cardScansQuery = useMemoFirebase(
-    () => rankingMonth && db ? query(collection(db, 'card_scans'), where('monthKey', '==', rankingMonth)) as Query<CardScan> : null,
+    () => rankingMonth && db ? query(collection(db, 'card_scans'), where('monthKey', '==', rankingMonth)) : null,
     [db, rankingMonth]
   );
   const { data: cardScans = [] } = useCollection<CardScan>(cardScansQuery);

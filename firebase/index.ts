@@ -12,7 +12,8 @@ export function useFirestore(): Firestore | null {
 }
 
 export function useCollection<T extends DocumentData>(
-  query: Query<T> | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: Query<any> | null
 ): { data: T[]; loading: boolean; error: Error | null } {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
