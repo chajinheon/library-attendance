@@ -167,7 +167,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isScannerActive) {
-      const html5QrCode = new Html5Qrcode("qr-reader", { formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128] });
+      const html5QrCode = new Html5Qrcode("qr-reader", { verbose: false, formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128] });
       scannerInstanceRef.current = html5QrCode;
       html5QrCode.start(
         { facingMode: "user" },
