@@ -12,7 +12,7 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { syncToNotion } from './actions/sync-notion';
 import { useToast } from '@/hooks/use-toast';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { cn } from '@/lib/utils';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { normalizeBarcodeValue } from '@/lib/barcode-utils';
@@ -167,7 +167,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isScannerActive) {
-      const html5QrCode = new Html5Qrcode("qr-reader", { verbose: false, formatsToSupport: [Html5QrcodeSupportedFormats.CODE_128] });
+      const html5QrCode = new Html5Qrcode("qr-reader", { verbose: false });
       scannerInstanceRef.current = html5QrCode;
       html5QrCode.start(
         { facingMode: "user" },
