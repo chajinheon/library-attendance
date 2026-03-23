@@ -1950,6 +1950,7 @@ export default function AdminPage() {
                 <div className="flex-1">
                   <p className="font-bold text-slate-800 text-base">차진헌</p>
                   <p className="text-xs text-slate-400 mt-0.5">개발 담당</p>
+                  <p className="text-sm font-bold text-slate-700 mt-2 tracking-wide">24293@hmh.or.kr</p>
                   <div className="flex flex-col gap-1.5 mt-3">
                     <a
                       href="https://chat.google.com/"
@@ -1958,7 +1959,7 @@ export default function AdminPage() {
                       className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-xl transition-colors"
                     >
                       <MessageCircle size={14} />
-                      Google Chat으로 문의
+                      Google Chat 열기 <span className="text-xs font-normal text-blue-400">(위 이메일로 검색)</span>
                     </a>
                     <a
                       href="https://mail.google.com/mail/?view=cm&to=24293@hmh.or.kr"
@@ -1967,7 +1968,7 @@ export default function AdminPage() {
                       className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors"
                     >
                       <span className="text-xs">✉</span>
-                      Gmail로 문의
+                      Gmail로 문의 <span className="text-xs font-normal text-slate-400">24293@hmh.or.kr</span>
                     </a>
                   </div>
                 </div>
