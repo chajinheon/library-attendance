@@ -599,7 +599,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
                 placeholder="해제 키 입력"
-                autoComplete="off"
+                autoComplete="new-password"
+                name="unlock-key"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-base font-medium placeholder:text-slate-500 focus:outline-none focus:border-[#2672D9] focus:ring-2 focus:ring-[#2672D9]/20 transition-all"
               />
               <button
@@ -619,7 +620,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   placeholder="비밀번호 입력"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-base font-medium placeholder:text-slate-500 focus:outline-none focus:border-[#2672D9] focus:ring-2 focus:ring-[#2672D9]/20 pr-12 transition-all"
-                  autoComplete="off"
+                  autoComplete="new-password"
+                  name="admin-pw"
                   autoFocus
                 />
                 <button
@@ -1672,6 +1674,8 @@ export default function AdminPage() {
                       onKeyDown={e => e.key === 'Enter' && handlePasswordChange()}
                       placeholder="새 비밀번호 입력"
                       className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2672D9]"
+                      autoComplete="new-password"
+                      name="new-admin-pw"
                       autoFocus
                     />
                     <Button onClick={handlePasswordChange} className="bg-slate-800 hover:bg-slate-900 rounded-xl text-sm px-5">
