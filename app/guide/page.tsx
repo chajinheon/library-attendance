@@ -4,142 +4,185 @@ export default function GuidePage() {
   return (
     <>
       <style>{`
-        @media print {
-          body { margin: 0; }
-          .no-print { display: none !important; }
-          .print-page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Noto Sans KR',sans-serif;background:#d1d5db;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:30px;}
+        .poster{width:780px;background:#fff;position:relative;overflow:hidden;}
+        .hero{background:#1a2744;color:#fff;padding:48px 50px 42px;position:relative;}
+        .hero::after{content:'';position:absolute;bottom:-24px;left:50px;width:80px;height:48px;background:#1a2744;clip-path:polygon(0 0,100% 0,50% 100%);}
+        .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
+        .school-label{font-size:12px;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,0.5);text-transform:uppercase;}
+        .beta-tag{font-size:10px;font-weight:700;background:#e74c3c;color:#fff;padding:3px 10px;border-radius:2px;letter-spacing:1px;}
+        .hero h1{font-size:38px;font-weight:900;line-height:1.2;letter-spacing:-1.5px;margin-bottom:6px;}
+        .hero h1 em{font-style:normal;color:#5ba4f5;}
+        .hero .tagline{font-size:14px;color:rgba(255,255,255,0.6);font-weight:400;}
+        .body{padding:44px 50px 40px;}
+        .how-to{display:flex;gap:0;margin-bottom:32px;border:2px solid #1a2744;border-radius:4px;overflow:hidden;}
+        .way{flex:1;padding:28px 26px;}
+        .way+.way{border-left:2px solid #1a2744;}
+        .way-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+        .way-num{width:28px;height:28px;background:#1a2744;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;}
+        .way-title{font-size:18px;font-weight:800;color:#1a2744;}
+        .rec-badge{font-size:9px;font-weight:700;background:#e74c3c;color:#fff;padding:2px 6px;border-radius:2px;margin-left:4px;vertical-align:middle;letter-spacing:0.5px;}
+        .way-desc{font-size:12.5px;color:#888;margin-bottom:16px;padding-left:38px;}
+        .step-list{list-style:none;padding-left:38px;}
+        .step-list li{position:relative;font-size:13.5px;color:#333;padding:6px 0 6px 24px;line-height:1.5;}
+        .step-list li::before{content:attr(data-step);position:absolute;left:0;top:6px;width:18px;height:18px;background:#eef2f7;color:#1a2744;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;}
+        .step-list li+li{border-top:1px dashed #e5e5e5;}
+        .step-list li strong{font-weight:700;color:#1a2744;}
+        .id-box{background:#f7f8fa;border-left:4px solid #1a2744;padding:20px 24px;margin-bottom:30px;display:flex;align-items:center;gap:24px;}
+        .id-box-text h4{font-size:14px;font-weight:800;color:#1a2744;margin-bottom:4px;}
+        .id-box-text p{font-size:12.5px;color:#666;margin-bottom:10px;}
+        .id-visual{display:flex;align-items:center;gap:4px;}
+        .id-block{text-align:center;}
+        .id-block .num{font-family:'Courier New',monospace;font-size:24px;font-weight:900;padding:4px 10px;display:block;border-radius:3px;margin-bottom:2px;}
+        .id-block .lbl{font-size:9px;color:#999;font-weight:500;}
+        .id-block.g .num{background:#dbeafe;color:#1e40af;}
+        .id-block.c .num{background:#e0e7ff;color:#4338ca;}
+        .id-block.n .num{background:#d1fae5;color:#065f46;}
+        .id-eq{font-size:20px;font-weight:700;color:#ccc;padding-bottom:14px;}
+        .id-block.result .num{background:#1a2744;color:#fff;letter-spacing:3px;font-size:26px;padding:6px 14px;}
+        .section-label{font-size:13px;font-weight:800;color:#1a2744;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #1a2744;display:inline-block;}
+        .results{display:flex;gap:12px;margin-bottom:30px;}
+        .result-item{flex:1;text-align:center;padding:18px 12px;border:2px solid;border-radius:4px;}
+        .result-item.ok{border-color:#22c55e;background:#f0fdf4;}
+        .result-item.dup{border-color:#eab308;background:#fefce8;}
+        .result-item.err{border-color:#ef4444;background:#fef2f2;}
+        .result-item .r-icon{font-size:28px;margin-bottom:6px;}
+        .result-item h4{font-size:14px;font-weight:700;margin-bottom:3px;}
+        .result-item.ok h4{color:#16a34a;}
+        .result-item.dup h4{color:#ca8a04;}
+        .result-item.err h4{color:#dc2626;}
+        .result-item p{font-size:11px;color:#777;line-height:1.4;}
+        .notices{display:flex;gap:0;border:2px solid #e74c3c;border-radius:4px;overflow:hidden;margin-bottom:32px;}
+        .notices::before{content:'!';display:flex;align-items:center;justify-content:center;background:#e74c3c;color:#fff;font-size:24px;font-weight:900;padding:0 18px;flex-shrink:0;}
+        .notice-list{display:flex;flex:1;}
+        .notice-item{flex:1;padding:16px 18px;text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;}
+        .notice-item+.notice-item{border-left:1px solid #f0d0cd;}
+        .notice-item strong{font-size:13px;font-weight:700;color:#c0392b;display:block;}
+        .notice-item span{font-size:11px;color:#888;line-height:1.4;}
+        .footer{background:#f7f8fa;padding:18px 50px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e5e5e5;}
+        .footer-left{font-size:12px;color:#999;}
+        .footer-left strong{color:#1a2744;font-weight:700;font-size:13px;}
+        .footer-right{font-size:11px;color:#aaa;}
+        .print-btn{position:fixed;top:20px;right:20px;padding:10px 20px;background:#1a2744;color:#fff;font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:700;border:none;border-radius:6px;cursor:pointer;z-index:100;}
+        @media print{
+          body{background:#fff;padding:0;}
+          .poster{box-shadow:none;width:100%;}
+          .print-btn{display:none;}
+          *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
         }
-        @page { size: A4; margin: 10mm; }
       `}</style>
 
-      {/* 인쇄 버튼 */}
-      <div className="no-print flex justify-center gap-3 py-4 bg-slate-100">
-        <button
-          onClick={() => window.print()}
-          className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 text-sm"
-        >
-          🖨️ 인쇄하기
-        </button>
-        <a href="/" className="px-6 py-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 text-sm">
-          메인으로
-        </a>
-      </div>
+      <button className="print-btn" onClick={() => window.print()}>🖨️ 인쇄하기</button>
 
-      {/* A4 인쇄 영역 */}
-      <div className="print-page max-w-[700px] mx-auto my-6 bg-white rounded-2xl shadow-xl overflow-hidden font-['Inter',sans-serif]">
+      <div className="poster">
+        <div className="hero">
+          <div className="hero-top">
+            <span className="school-label">Hyomyung High School · Library</span>
+            <span className="beta-tag">BETA</span>
+          </div>
+          <h1>야간자율학습<br /><em>스마트 출결</em> 시스템</h1>
+          <p className="tagline">학생증 바코드 스캔 또는 학번 직접 입력으로 출석 체크</p>
+        </div>
 
-        {/* 헤더 */}
-        <div className="bg-[#1a3a6b] px-10 py-8 text-white">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-[#1a3a6b] font-black text-3xl shadow-lg">H</div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight">효명고 야간자율학습 출결 시스템</h1>
-                <span className="text-xs font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-md">BETA</span>
+        <div className="body">
+          <div className="how-to">
+            <div className="way">
+              <div className="way-header">
+                <span className="way-num">1</span>
+                <span className="way-title">바코드 스캔 <span className="rec-badge">추천</span></span>
               </div>
-              <p className="text-blue-200 text-sm mt-0.5">HYOMYUNG SMART ROLL CALL · 도서관 운영</p>
+              <p className="way-desc">학생증 뒷면을 카메라에 비춰주세요</p>
+              <ul className="step-list">
+                <li data-step="①">화면의 <strong>스캔 ON</strong> 버튼 클릭</li>
+                <li data-step="②">학생증 <strong>뒷면 바코드</strong>를 카메라에 비추기</li>
+                <li data-step="③">자동 인식 → <strong>출석 완료</strong></li>
+              </ul>
+            </div>
+            <div className="way">
+              <div className="way-header">
+                <span className="way-num">2</span>
+                <span className="way-title">학번 직접 입력</span>
+              </div>
+              <p className="way-desc">학생증이 없어도 출석할 수 있어요</p>
+              <ul className="step-list">
+                <li data-step="①">화면의 <strong>숫자 키패드</strong> 이용</li>
+                <li data-step="②"><strong>5자리 학번</strong> 입력</li>
+                <li data-step="③">자동 제출 → <strong>출석 완료</strong></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="id-box">
+            <div className="id-box-text">
+              <h4>학번 구성법</h4>
+              <p>학년(1자리) + 반(2자리) + 번호(2자리)</p>
+            </div>
+            <div className="id-visual">
+              <div className="id-block g">
+                <span className="num">3</span>
+                <span className="lbl">학년</span>
+              </div>
+              <div className="id-block c">
+                <span className="num">07</span>
+                <span className="lbl">반</span>
+              </div>
+              <div className="id-block n">
+                <span className="num">02</span>
+                <span className="lbl">번호</span>
+              </div>
+              <span className="id-eq">=</span>
+              <div className="id-block result">
+                <span className="num">30702</span>
+                <span className="lbl">학번</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="section-label">출석 인식 결과</div>
+          <div className="results">
+            <div className="result-item ok">
+              <div className="r-icon">✓</div>
+              <h4>출석 완료</h4>
+              <p>정상적으로 출석 처리됨</p>
+            </div>
+            <div className="result-item dup">
+              <div className="r-icon">⚠</div>
+              <h4>이미 출석</h4>
+              <p>오늘 이미 출석 완료 상태</p>
+            </div>
+            <div className="result-item err">
+              <div className="r-icon">✗</div>
+              <h4>미등록 학생</h4>
+              <p>관리자에게 등록 요청</p>
+            </div>
+          </div>
+
+          <div className="notices">
+            <div className="notice-list">
+              <div className="notice-item">
+                <strong>중복 출석 불가</strong>
+                <span>하루 1회만 인정</span>
+              </div>
+              <div className="notice-item">
+                <strong>바코드 면 확인</strong>
+                <span>앞면(사진) 아닌 뒷면</span>
+              </div>
+              <div className="notice-item">
+                <strong>얼굴 인식 불가</strong>
+                <span>반드시 바코드를 비춰주세요</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="px-10 py-8 space-y-8">
-
-          {/* 소개 */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-            <p className="text-slate-700 text-sm leading-relaxed">
-              본 시스템은 <strong>학생증 바코드 스캔</strong> 또는 <strong>학번 직접 입력</strong>으로 야간자율학습 출석을 체크하는 스마트 출결 시스템입니다.
-              태블릿·PC 브라우저에서 접속하여 사용하세요.
-            </p>
+        <div className="footer">
+          <div className="footer-left">
+            <strong>효명고등학교</strong> 도서관 운영
           </div>
-
-          {/* 이용 방법 */}
-          <div>
-            <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
-              <span className="w-7 h-7 bg-[#2672D9] rounded-lg flex items-center justify-center text-white text-sm font-black">?</span>
-              이용 방법
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-
-              {/* 방법 1: 바코드 */}
-              <div className="border-2 border-[#2672D9] rounded-2xl p-5 bg-blue-50/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-[#2672D9] rounded-xl flex items-center justify-center text-white font-black text-sm">1</div>
-                  <span className="font-black text-slate-800">학생증 바코드 스캔</span>
-                  <span className="ml-auto text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">추천</span>
-                </div>
-                <ol className="text-sm text-slate-600 space-y-2">
-                  <li className="flex gap-2"><span className="text-[#2672D9] font-bold shrink-0">①</span>화면의 <strong>스캔 ON</strong> 버튼 클릭</li>
-                  <li className="flex gap-2"><span className="text-[#2672D9] font-bold shrink-0">②</span>학생증 <strong>바코드 면</strong>을 카메라에 비추기</li>
-                  <li className="flex gap-2"><span className="text-[#2672D9] font-bold shrink-0">③</span>자동 인식 후 출석 완료 화면 확인</li>
-                </ol>
-                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700">
-                  ⚠️ 학생증 <strong>앞면(사진)이 아닌 뒷면 바코드</strong>를 카메라에 비춰주세요
-                </div>
-              </div>
-
-              {/* 방법 2: 학번 입력 */}
-              <div className="border-2 border-slate-200 rounded-2xl p-5 bg-slate-50/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-slate-600 rounded-xl flex items-center justify-center text-white font-black text-sm">2</div>
-                  <span className="font-black text-slate-800">학번 직접 입력</span>
-                </div>
-                <ol className="text-sm text-slate-600 space-y-2">
-                  <li className="flex gap-2"><span className="text-slate-500 font-bold shrink-0">①</span>화면의 숫자 키패드 이용</li>
-                  <li className="flex gap-2"><span className="text-slate-500 font-bold shrink-0">②</span><strong>5자리 학번</strong> 입력 (예: 30702)</li>
-                  <li className="flex gap-2"><span className="text-slate-500 font-bold shrink-0">③</span>자동 제출 후 출석 완료 확인</li>
-                </ol>
-                <div className="mt-3 bg-slate-100 rounded-xl px-3 py-2 text-xs text-slate-600">
-                  💡 학번: <strong>학년 + 반 + 번호</strong> (예: 3학년 7반 2번 → 30702)
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 주의사항 */}
-          <div>
-            <h2 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2">
-              <span className="w-7 h-7 bg-red-500 rounded-lg flex items-center justify-center text-white text-sm font-black">!</span>
-              주의사항
-            </h2>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { icon: '🚫', text: '중복 출석 불가\n하루 1회만 인정됩니다' },
-                { icon: '🪪', text: '학생증 지참 필수\n바코드 스캔 시 필요합니다' },
-                { icon: '🤳', text: '얼굴 인식 불가\n반드시 바코드를 비춰주세요' },
-              ].map((item, i) => (
-                <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                  <div className="text-2xl mb-1">{item.icon}</div>
-                  <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 출석 상태 */}
-          <div>
-            <h2 className="text-lg font-black text-slate-800 mb-3 flex items-center gap-2">
-              <span className="w-7 h-7 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-black">✓</span>
-              출석 인식 결과
-            </h2>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { color: 'bg-green-50 border-green-200', icon: '✅', title: '출석 완료', desc: '정상적으로 출석이 처리되었습니다' },
-                { color: 'bg-yellow-50 border-yellow-200', icon: '⚠️', title: '이미 출석', desc: '오늘 이미 출석이 완료된 상태입니다' },
-                { color: 'bg-red-50 border-red-200', icon: '❌', title: '미등록 학생', desc: '관리자에게 학번 등록을 요청하세요' },
-              ].map((item, i) => (
-                <div key={i} className={`border rounded-xl p-3 text-center ${item.color}`}>
-                  <div className="text-xl mb-1">{item.icon}</div>
-                  <p className="text-xs font-bold text-slate-700">{item.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 푸터 */}
-          <div className="border-t border-slate-200 pt-4 flex justify-between items-center text-xs text-slate-400">
-            <span>효명고등학교 도서관 운영 · 야간자율학습 출결 관리 시스템 BETA</span>
-            <span>문의: 도서관 담당 선생님</span>
+          <div className="footer-right">
+            문의 → 도서관 담당 선생님
           </div>
         </div>
       </div>
