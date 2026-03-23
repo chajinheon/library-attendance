@@ -279,7 +279,7 @@ export default function Home() {
 
           {/* 키패드 */}
           {!isScannerActive && (
-            <div className="grid grid-cols-3 gap-2.5 flex-1">
+            <div className="grid grid-cols-3 gap-2.5 content-start">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
                 <button
                   key={n}
