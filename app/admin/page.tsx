@@ -6,7 +6,7 @@ import {
   Settings, Users, UserCheck, LogOut, Plus, Trash2, Search,
   Download, RefreshCw, AlertTriangle, ChevronLeft,
   ScanBarcode, BookOpen, History, Shield, Eye, EyeOff, Trophy,
-  LayoutDashboard, X, BarChart2, TrendingUp, Clock, Activity, BookMarked
+  LayoutDashboard, X, BarChart2, TrendingUp, Clock, Activity, BookMarked, MessageCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,7 @@ const MAX_ATTEMPTS = 10;
 const LOCKOUT_MS = 60 * 1000;
 const MASTER_KEY = '@@@@';
 
-type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide';
+type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide' | 'contact';
 
 const gradeColors: Record<number, string> = {
   1: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -1063,6 +1063,7 @@ export default function AdminPage() {
     { key: 'barcode', label: '바코드 관리', icon: ScanBarcode, badge: barcodes.length },
     { key: 'settings', label: '비번 변경', icon: Shield },
     { key: 'guide', label: '운용 가이드', icon: BookMarked },
+    { key: 'contact', label: '문의', icon: MessageCircle },
   ];
 
   const activeTabLabel = navItems.find(n => n.key === activeTab)?.label ?? '';
@@ -1943,15 +1944,53 @@ export default function AdminPage() {
                 </a>
               </div>
 
-              {/* 문의 */}
-              <div className="border border-slate-200 rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">차</div>
-                <div>
-                  <p className="font-bold text-slate-700 text-sm">개발·문의 담당: 차진헌</p>
-                  <p className="text-xs text-slate-500 mt-0.5">오류 신고, 기능 추가 요청, 사용 문의는 Google Chat 또는 이메일로 연락해 주세요.</p>
-                  <a href="mailto:24293@hmh.or.kr" className="text-xs text-blue-600 font-bold mt-1 inline-block hover:underline">24293@hmh.or.kr (Google Chat)</a>
+            </div>
+          )}
+
+          {/* 문의 탭 */}
+          {activeTab === 'contact' && (
+            <div className="p-6 max-w-lg mx-auto space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">문의하기</h2>
+                <p className="text-sm text-slate-500 mt-1">오류 신고, 기능 요청, 사용 문의는 아래로 연락해 주세요.</p>
+              </div>
+
+              {/* 개발 담당 카드 */}
+              <div className="border border-slate-200 rounded-2xl p-5 flex items-center gap-4 bg-white shadow-sm">
+                <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-white font-black text-xl shrink-0">차</div>
+                <div className="flex-1">
+                  <p className="font-bold text-slate-800 text-base">차진헌</p>
+                  <p className="text-xs text-slate-400 mt-0.5">개발 담당</p>
+                  <div className="flex flex-col gap-1.5 mt-3">
+                    <a
+                      href="mailto:24293@hmh.or.kr"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-xl transition-colors"
+                    >
+                      <MessageCircle size={14} />
+                      24293@hmh.or.kr (Google Chat)
+                    </a>
+                    <a
+                      href="mailto:24293@hmh.or.kr"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors"
+                    >
+                      <span className="text-xs">✉</span>
+                      이메일로 문의
+                    </a>
+                  </div>
                 </div>
               </div>
+
+              {/* 안내 */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700 space-y-1">
+                <p className="font-bold">문의 시 이런 내용을 포함해 주세요</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs text-amber-600 mt-2">
+                  <li>오류가 발생한 상황 (어떤 동작 중에 발생했는지)</li>
+                  <li>오류 메시지 또는 화면 캡처</li>
+                  <li>사용 중인 기기 (PC / 태블릿 / 스마트폰)</li>
+                </ul>
+              </div>
+
+              <p className="text-xs text-slate-400 text-center">현재 BETA 버전입니다 · 빠른 시일 내에 답변 드리겠습니다</p>
             </div>
           )}
 
