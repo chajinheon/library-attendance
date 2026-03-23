@@ -1063,7 +1063,7 @@ export default function AdminPage() {
     { key: 'barcode', label: '바코드 관리', icon: ScanBarcode, badge: barcodes.length },
     { key: 'settings', label: '비번 변경', icon: Shield },
     { key: 'guide', label: '운용 가이드', icon: BookMarked },
-    { key: 'contact', label: '문의 안내문', icon: MessageCircle },
+    { key: 'contact', label: '문의·안내문', icon: MessageCircle },
   ];
 
   const activeTabLabel = navItems.find(n => n.key === activeTab)?.label ?? '';
