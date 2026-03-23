@@ -182,7 +182,7 @@ export default function GuidePage() {
             <strong>효명고등학교</strong> 도서관 운영
           </div>
           <div className="footer-right">
-            문의 → 도서관 담당 선생님
+            문의 · 개발 담당: <strong style={{color:'#1a2744'}}>차진헌</strong> &nbsp;|&nbsp; <a href="mailto:24293@hmh.or.kr" style={{color:'#1a2744', textDecoration:'none', fontWeight:700}}>24293@hmh.or.kr</a> &nbsp;(Google Chat)
           </div>
         </div>
       </div>

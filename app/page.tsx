@@ -225,11 +225,16 @@ export default function Home() {
             <p className="text-[10px] text-slate-400 font-bold tracking-widest">HYOMYUNG SMART ROLL CALL</p>
           </div>
         </div>
-        <Link href="/admin">
-          <Button variant="ghost" className="text-slate-400 hover:text-slate-600 rounded-xl gap-2">
-            <Settings className="w-4 h-4" /> 관리자
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <a href="mailto:24293@hmh.or.kr" className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors hidden sm:block">
+            문의: 차진헌 · 24293@hmh.or.kr
+          </a>
+          <Link href="/admin">
+            <Button variant="ghost" className="text-slate-400 hover:text-slate-600 rounded-xl gap-2">
+              <Settings className="w-4 h-4" /> 관리자
+            </Button>
+          </Link>
+        </div>
       </header>
 
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-[520px_1fr] gap-6 overflow-hidden">

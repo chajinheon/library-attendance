@@ -1938,6 +1938,16 @@ export default function AdminPage() {
                   안내문 열기 →
                 </a>
               </div>
+
+              {/* 문의 */}
+              <div className="border border-slate-200 rounded-2xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">차</div>
+                <div>
+                  <p className="font-bold text-slate-700 text-sm">개발·문의 담당: 차진헌</p>
+                  <p className="text-xs text-slate-500 mt-0.5">오류 신고, 기능 추가 요청, 사용 문의는 Google Chat 또는 이메일로 연락해 주세요.</p>
+                  <a href="mailto:24293@hmh.or.kr" className="text-xs text-blue-600 font-bold mt-1 inline-block hover:underline">24293@hmh.or.kr (Google Chat)</a>
+                </div>
+              </div>
             </div>
           )}
 
