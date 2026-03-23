@@ -1933,17 +1933,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 학생 안내문 */}
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-slate-700 text-sm">📄 학생용 이용 안내문 인쇄</p>
-                  <p className="text-xs text-slate-500 mt-0.5">코팅 후 게시용 A4 안내문입니다. 학생들이 잘 볼 수 있는 곳에 부착해 주세요.</p>
-                </div>
-                <a href="/guide" target="_blank" className="px-4 py-2 bg-[#2672D9] text-white text-xs font-bold rounded-xl hover:bg-[#1e5bb8] transition-colors whitespace-nowrap">
-                  안내문 열기 →
-                </a>
-              </div>
-
             </div>
           )}
 
@@ -1988,6 +1977,17 @@ export default function AdminPage() {
                   <li>오류 메시지 또는 화면 캡처</li>
                   <li>사용 중인 기기 (PC / 태블릿 / 스마트폰)</li>
                 </ul>
+              </div>
+
+              {/* 학생 안내문 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-slate-700 text-sm">📄 학생용 이용 안내문 인쇄</p>
+                  <p className="text-xs text-slate-500 mt-0.5">코팅 후 게시용 A4 안내문입니다. 학생들이 잘 볼 수 있는 곳에 부착해 주세요.</p>
+                </div>
+                <a href="/guide" target="_blank" className="px-4 py-2 bg-[#2672D9] text-white text-xs font-bold rounded-xl hover:bg-[#1e5bb8] transition-colors whitespace-nowrap">
+                  안내문 열기 →
+                </a>
               </div>
 
               <p className="text-xs text-slate-400 text-center">현재 BETA 버전입니다 · 빠른 시일 내에 답변 드리겠습니다</p>
