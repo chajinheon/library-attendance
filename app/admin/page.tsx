@@ -1063,7 +1063,7 @@ export default function AdminPage() {
     { key: 'barcode', label: '바코드 관리', icon: ScanBarcode, badge: barcodes.length },
     { key: 'settings', label: '비번 변경', icon: Shield },
     { key: 'guide', label: '운용 가이드', icon: BookMarked },
-    { key: 'contact', label: '문의', icon: MessageCircle },
+    { key: 'contact', label: '문의 · 안내', icon: MessageCircle },
   ];
 
   const activeTabLabel = navItems.find(n => n.key === activeTab)?.label ?? '';
@@ -1961,11 +1961,13 @@ export default function AdminPage() {
                       Google Chat으로 문의
                     </a>
                     <a
-                      href="mailto:24293@hmh.or.kr"
+                      href="https://mail.google.com/mail/?view=cm&to=24293@hmh.or.kr"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-xl transition-colors"
                     >
                       <span className="text-xs">✉</span>
-                      이메일로 문의
+                      Gmail로 문의
                     </a>
                   </div>
                 </div>
