@@ -218,7 +218,10 @@ export default function Home() {
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-[#2672D9] rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-200">H</div>
           <div>
-            <h1 className="text-xl font-black text-slate-800 leading-tight">효명고 야간자율학습 출결</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-800 leading-tight">효명고 야간자율학습 출결</h1>
+              <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-md">BETA</span>
+            </div>
             <p className="text-[10px] text-slate-400 font-bold tracking-widest">HYOMYUNG SMART ROLL CALL</p>
           </div>
         </div>
@@ -253,7 +256,10 @@ export default function Home() {
           </div>
 
           {/* 카메라 뷰 */}
-          <div id="qr-reader" className={cn("bg-slate-900 rounded-2xl aspect-[4/3] mb-8 overflow-hidden", !isScannerActive && "hidden")} />
+          <div id="qr-reader" className={cn("bg-slate-900 rounded-2xl aspect-[4/3] overflow-hidden", !isScannerActive && "hidden")} />
+          {isScannerActive && (
+            <p className="text-center text-xs text-slate-400 mt-2 mb-6">📷 학생증 <span className="font-bold text-slate-600">바코드 면</span>을 카메라에 비춰주세요</p>
+          )}
 
           {/* 학번 입력 박스 */}
           {!isScannerActive && (

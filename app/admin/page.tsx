@@ -6,7 +6,7 @@ import {
   Settings, Users, UserCheck, LogOut, Plus, Trash2, Search,
   Download, RefreshCw, AlertTriangle, ChevronLeft,
   ScanBarcode, BookOpen, History, Shield, Eye, EyeOff, Trophy,
-  LayoutDashboard, X, BarChart2, TrendingUp, Clock, Activity
+  LayoutDashboard, X, BarChart2, TrendingUp, Clock, Activity, BookMarked
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -39,10 +39,11 @@ const DEFAULT_PASSWORD = 'admin1234';
 const AUTH_KEY = 'admin_auth';
 const LOCKOUT_KEY = 'admin_lockout';
 const ATTEMPTS_KEY = 'admin_attempts';
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 10;
 const LOCKOUT_MS = 60 * 1000;
+const MASTER_KEY = '@@@@';
 
-type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings';
+type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide';
 
 const gradeColors: Record<number, string> = {
   1: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -519,6 +520,12 @@ function SecretStats({ db, onClose }: { db: any; onClose: () => void }) {
 function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+
+  // 페이지 나갔다 돌아올 때 비번 초기화
+  useEffect(() => {
+    setPassword('');
+    return () => setPassword('');
+  }, []);
   const [error, setError] = useState('');
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
 
@@ -534,6 +541,14 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
   }, []);
 
   const handleLogin = () => {
+    // 마스터 키는 잠금 중에도 항상 통과
+    if (password === MASTER_KEY) {
+      localStorage.setItem(ATTEMPTS_KEY, '0');
+      localStorage.removeItem(LOCKOUT_KEY);
+      onLogin();
+      return;
+    }
+
     const lockoutUntil = parseInt(localStorage.getItem(LOCKOUT_KEY) ?? '0');
     if (Date.now() < lockoutUntil) return;
 
@@ -549,7 +564,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
       if (attempts >= MAX_ATTEMPTS) {
         localStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
         localStorage.setItem(ATTEMPTS_KEY, '0');
-        setError('5회 실패. 1분간 잠금됩니다.');
+        setError(`${MAX_ATTEMPTS}회 실패. 1분간 잠금됩니다.`);
       } else {
         setError(`비밀번호가 틀렸습니다. (${attempts}/${MAX_ATTEMPTS})`);
       }
@@ -572,10 +587,27 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
         {/* Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           {lockoutRemaining > 0 ? (
-            <div className="bg-red-950/50 border border-red-900 rounded-xl p-4 text-center">
-              <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
-              <p className="font-bold text-red-400">잠금 중</p>
-              <p className="text-sm text-red-500/80">{Math.ceil(lockoutRemaining / 1000)}초 후 재시도 가능</p>
+            <div className="space-y-3">
+              <div className="bg-red-950/50 border border-red-900 rounded-xl p-4 text-center">
+                <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="font-bold text-red-400">잠금 중</p>
+                <p className="text-sm text-red-500/80">{Math.ceil(lockoutRemaining / 1000)}초 후 재시도 가능</p>
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="해제 키 입력"
+                autoComplete="off"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-base font-medium placeholder:text-slate-500 focus:outline-none focus:border-[#2672D9] focus:ring-2 focus:ring-[#2672D9]/20 transition-all"
+              />
+              <button
+                onClick={handleLogin}
+                className="w-full h-10 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-sm transition-colors"
+              >
+                해제
+              </button>
             </div>
           ) : (
             <>
@@ -587,6 +619,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   placeholder="비밀번호 입력"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-base font-medium placeholder:text-slate-500 focus:outline-none focus:border-[#2672D9] focus:ring-2 focus:ring-[#2672D9]/20 pr-12 transition-all"
+                  autoComplete="off"
                   autoFocus
                 />
                 <button
@@ -1022,11 +1055,12 @@ export default function AdminPage() {
   // ── Sidebar nav items ──
   const navItems: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { key: 'attendance', label: '출석 현황', icon: LayoutDashboard, badge: presentToday },
-    { key: 'ranking', label: '스캔 랭킹', icon: Trophy },
+    { key: 'ranking', label: '월간 랭킹', icon: Trophy },
     { key: 'history', label: '출석 이력', icon: History },
     { key: 'students', label: '학생 관리', icon: Users, badge: totalStudents },
     { key: 'barcode', label: '바코드 관리', icon: ScanBarcode, badge: barcodes.length },
     { key: 'settings', label: '비번 변경', icon: Shield },
+    { key: 'guide', label: '운용 가이드', icon: BookMarked },
   ];
 
   const activeTabLabel = navItems.find(n => n.key === activeTab)?.label ?? '';
@@ -1282,7 +1316,7 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
                   <Trophy className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-bold text-slate-700">월별 스캔 랭킹</span>
+                  <span className="text-sm font-bold text-slate-700">월간 랭킹</span>
                 </div>
                 <input
                   type="month"
@@ -1664,6 +1698,245 @@ export default function AdminPage() {
                 <p className="text-xs text-slate-400 mt-1">
                   변경 후 브라우저 localStorage에 암호화 저장됩니다.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab: 운용 가이드 ── */}
+          {activeTab === 'guide' && (
+            <div className="max-w-3xl space-y-6 pb-10">
+
+              {/* 안내 배너 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+                <p className="text-slate-700 text-sm leading-relaxed font-medium">
+                  📋 이 가이드는 <strong>처음 사용하시는 선생님</strong>을 위해 작성되었습니다. 순서대로 따라하시면 누구나 쉽게 운용하실 수 있습니다.
+                </p>
+                <p className="text-xs text-slate-400 mt-2">현재 BETA 버전입니다. 문의사항은 개발 담당 학생에게 연락주세요.</p>
+              </div>
+
+              {/* STEP 1 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">1</span>
+                  <div>
+                    <span className="text-white font-bold text-sm">처음 시작할 때 — 학생 등록하기</span>
+                    <span className="ml-2 text-xs text-slate-400">최초 1회만 진행</span>
+                  </div>
+                </div>
+                <div className="p-5 space-y-4 text-sm text-slate-600">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-700 text-xs">
+                    ⚠️ 학생을 먼저 등록해야 출석 체크가 가능합니다. 등록되지 않은 학생은 출석해도 "미등록 학생"으로 표시됩니다.
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">①</span>
+                      <div><span className="font-bold text-slate-700">왼쪽 메뉴에서 "학생 관리"</span> 탭을 클릭합니다.</div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">②</span>
+                      <div>
+                        <span className="font-bold text-slate-700">"학생 추가" 버튼</span>을 눌러 학번·이름·학년·반·번호를 입력합니다.
+                        <div className="mt-1 bg-slate-50 rounded-lg p-2 text-xs text-slate-500">
+                          💡 학번 형식: <strong>학년+반+번호</strong> (예: 3학년 7반 2번 → <strong>30702</strong>)
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">③</span>
+                      <div>학생 수가 많은 경우 <span className="font-bold text-slate-700">"CSV 일괄 등록"</span> 기능을 이용하면 엑셀 파일로 한 번에 등록 가능합니다. (개발 담당 학생에게 CSV 파일 형식 문의)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 2 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">2</span>
+                  <div>
+                    <span className="text-white font-bold text-sm">처음 시작할 때 — 바코드 연결하기</span>
+                    <span className="ml-2 text-xs text-slate-400">학생증 바코드 스캔을 사용할 경우</span>
+                  </div>
+                </div>
+                <div className="p-5 space-y-4 text-sm text-slate-600">
+                  <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-500">
+                    💡 학번 키패드만 사용하실 경우 이 단계는 건너뛰어도 됩니다. 바코드 스캔을 원하시면 아래를 따라해 주세요.
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">①</span>
+                      <div>왼쪽 메뉴에서 <span className="font-bold text-slate-700">"바코드 관리"</span> 탭을 클릭합니다.</div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">②</span>
+                      <div>
+                        <span className="font-bold text-slate-700">학생증 바코드 값</span>과 <span className="font-bold text-slate-700">학번</span>을 입력하고 등록합니다.
+                        <div className="mt-1 bg-slate-50 rounded-lg p-2 text-xs text-slate-500">
+                          💡 바코드 값을 모르는 경우: 메인 화면에서 "스캔 ON" 버튼을 켜고 학생증을 비추면 자동으로 바코드 값이 감지됩니다. 그 값을 여기에 입력하면 됩니다.
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">③</span>
+                      <div>등록 후에는 해당 학생의 학생증을 스캔하면 자동으로 출석이 처리됩니다.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 3 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">3</span>
+                  <div>
+                    <span className="text-white font-bold text-sm">매일 야자 시간 운용 방법</span>
+                    <span className="ml-2 text-xs text-slate-400">날마다 반복</span>
+                  </div>
+                </div>
+                <div className="p-5 space-y-4 text-sm text-slate-600">
+                  <div className="space-y-3">
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">①</span>
+                      <div>야자 시작 전, 도서관 컴퓨터나 태블릿에서 <span className="font-bold text-slate-700">메인 화면(출석 체크)</span>을 열어 놓습니다. 주소창에 사이트 주소를 입력하거나 즐겨찾기로 저장해두세요.</div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">②</span>
+                      <div>
+                        학생이 도착하면 두 가지 방법 중 하나로 출석합니다.
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                            <p className="font-bold text-blue-700 text-xs mb-1">📷 바코드 스캔</p>
+                            <p className="text-xs text-slate-500">"스캔 ON" 버튼 → 학생증 뒷면 바코드를 카메라에 비추기</p>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <p className="font-bold text-slate-700 text-xs mb-1">🔢 학번 입력</p>
+                            <p className="text-xs text-slate-500">화면 키패드로 5자리 학번 직접 입력</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">③</span>
+                      <div>출석 완료 시 화면에 <span className="font-bold text-green-600">✅ 출석 완료</span> 메시지와 학생 이름이 표시됩니다. 이름이 맞는지 학생이 직접 확인하도록 안내하세요.</div>
+                    </div>
+                    <div className="flex gap-3 items-start">
+                      <span className="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">④</span>
+                      <div><span className="font-bold text-slate-700">날짜가 바뀌면 자동으로 초기화</span>됩니다. 매일 별도로 리셋할 필요가 없으며, 자정이 지나면 새로운 날의 출석으로 자동 전환됩니다.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 4 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-purple-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">4</span>
+                  <span className="text-white font-bold text-sm">출석 현황 확인 및 출석부 출력</span>
+                </div>
+                <div className="p-5 space-y-4 text-sm text-slate-600">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="font-bold text-slate-700 mb-2">📊 오늘 출석 현황 보기</p>
+                      <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-500">
+                        <p>왼쪽 메뉴 <strong>"출석 현황"</strong> 클릭 → 오늘 출석한 학생 전체 목록이 표시됩니다.</p>
+                        <p>상단 <strong>"1학년 / 2학년 / 3학년"</strong> 버튼으로 학년별로 필터링할 수 있습니다.</p>
+                        <p>우측 상단 <strong>"CSV 내보내기"</strong> 버튼을 누르면 엑셀로 저장할 수 있습니다.</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700 mb-2">📅 과거 날짜 출석 기록 보기</p>
+                      <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-500">
+                        <p>왼쪽 메뉴 <strong>"출석 이력"</strong> 클릭 → 날짜 선택기에서 원하는 날짜를 선택합니다.</p>
+                        <p>해당 날짜의 전체 출석 기록이 표시됩니다. 바코드/키패드 구분도 확인 가능합니다.</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700 mb-2">🏆 월간 랭킹 보기</p>
+                      <div className="bg-slate-50 rounded-xl p-3 space-y-1 text-xs text-slate-500">
+                        <p>왼쪽 메뉴 <strong>"월간 랭킹"</strong> 클릭 → 이번 달 바코드 스캔 횟수 기준 랭킹이 표시됩니다.</p>
+                        <p>달이 바뀌면 자동으로 해당 월 랭킹으로 전환됩니다.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 5 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-red-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">5</span>
+                  <span className="text-white font-bold text-sm">비밀번호 관리 및 보안 주의사항</span>
+                </div>
+                <div className="p-5 space-y-3 text-sm text-slate-600">
+                  <div className="flex gap-3 items-start">
+                    <span className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">①</span>
+                    <div><span className="font-bold text-slate-700">비밀번호 변경:</span> 왼쪽 메뉴 "비번 변경" 탭에서 새 비밀번호를 입력하고 변경 버튼을 누르면 됩니다. 초기 비밀번호(admin1234)는 반드시 변경해 주세요.</div>
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <span className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">②</span>
+                    <div><span className="font-bold text-slate-700">로그인 잠금:</span> 비밀번호를 10회 연속 틀리면 1분간 잠금됩니다. 잠금 화면에서 해제 키를 입력하면 즉시 해제됩니다. (해제 키는 개발 담당 학생에게 문의)</div>
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <span className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">③</span>
+                    <div><span className="font-bold text-slate-700">자리를 비울 때:</span> 왼쪽 하단 "로그아웃" 버튼을 눌러주세요. 학생이 관리자 페이지에 접근하지 못하도록 반드시 로그아웃 후 자리를 비워주세요.</div>
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <span className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center text-xs font-black shrink-0 mt-0.5">④</span>
+                    <div><span className="font-bold text-slate-700">브라우저 비밀번호 저장 금지:</span> 브라우저가 "비밀번호 저장할까요?" 라고 물어보면 반드시 <strong>"저장 안 함"</strong>을 선택하세요. 다른 사람이 같은 기기를 사용할 수 있습니다.</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 6 - FAQ */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 px-5 py-3 flex items-center gap-3">
+                  <span className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center text-white text-sm font-black shrink-0">?</span>
+                  <span className="text-white font-bold text-sm">문제가 생겼을 때 — 자주 묻는 질문</span>
+                </div>
+                <div className="p-5 space-y-3 text-sm">
+                  {[
+                    {
+                      q: '학생증을 카메라에 비추는데 인식이 안 돼요',
+                      a: '학생증 뒷면(바코드가 있는 면)을 카메라에 비춰주세요. 앞면(사진 있는 면)은 인식되지 않습니다. 빛 반사가 심할 경우 각도를 조금 바꿔보세요. 그래도 안 된다면 학번을 직접 키패드로 입력하면 됩니다.',
+                    },
+                    {
+                      q: '학생이 출석했는데 "미등록 학생"이라고 나와요',
+                      a: '"학생 관리" 탭에서 해당 학번이 등록되어 있는지 확인하세요. 바코드로 출석한 경우에는 "바코드 관리" 탭에서 해당 학생증 바코드가 등록되어 있는지도 확인해 주세요.',
+                    },
+                    {
+                      q: '출석했다고 했는데 출석 현황에 이름이 안 보여요',
+                      a: '화면 상단의 학년 필터가 특정 학년으로 선택되어 있을 수 있습니다. "전체"를 선택해서 다시 확인해 보세요. 그래도 없으면 페이지를 새로 고침(F5 또는 브라우저 새로고침 버튼)해 주세요.',
+                    },
+                    {
+                      q: '"이미 출석하셨습니다"라고 나오는데 실제로 안 했어요',
+                      a: '오늘 날짜에 이미 동일한 학번으로 출석 기록이 있는 경우입니다. "출석 이력" 탭에서 오늘 날짜를 선택해 중복 기록이 있는지 확인해 주세요.',
+                    },
+                    {
+                      q: '카메라 화면이 아예 안 켜져요',
+                      a: '주소창을 확인해 주세요. 주소가 http://로 시작하면 카메라가 작동하지 않습니다. 반드시 https://로 시작하는 주소로 접속해야 합니다. 또한 브라우저에서 카메라 사용 허용을 눌러주셔야 합니다. 주소창 왼쪽의 자물쇠 아이콘을 클릭하면 권한 설정이 가능합니다.',
+                    },
+                    {
+                      q: '출석 데이터가 갑자기 없어진 것 같아요',
+                      a: '모든 데이터는 인터넷 서버(클라우드)에 안전하게 저장되므로 실제로 사라지지 않습니다. 날짜 필터나 학년 필터를 확인해 보세요. 인터넷 연결이 일시적으로 끊겼을 경우 잠시 후 새로고침하면 정상적으로 표시됩니다.',
+                    },
+                  ].map((item, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                      <p className="font-bold text-slate-700 mb-1.5 flex items-start gap-2"><span className="text-amber-500 shrink-0">Q.</span>{item.q}</p>
+                      <p className="text-slate-500 leading-relaxed flex items-start gap-2"><span className="text-blue-500 font-bold shrink-0">A.</span>{item.a}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 학생 안내문 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-slate-700 text-sm">📄 학생용 이용 안내문 인쇄</p>
+                  <p className="text-xs text-slate-500 mt-0.5">코팅 후 게시용 A4 안내문입니다. 학생들이 잘 볼 수 있는 곳에 부착해 주세요.</p>
+                </div>
+                <a href="/guide" target="_blank" className="px-4 py-2 bg-[#2672D9] text-white text-xs font-bold rounded-xl hover:bg-[#1e5bb8] transition-colors whitespace-nowrap">
+                  안내문 열기 →
+                </a>
               </div>
             </div>
           )}
