@@ -1952,11 +1952,13 @@ export default function AdminPage() {
                   <p className="text-xs text-slate-400 mt-0.5">개발 담당</p>
                   <div className="flex flex-col gap-1.5 mt-3">
                     <a
-                      href="mailto:24293@hmh.or.kr"
+                      href="https://chat.google.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-xl transition-colors"
                     >
                       <MessageCircle size={14} />
-                      24293@hmh.or.kr (Google Chat)
+                      Google Chat으로 문의
                     </a>
                     <a
                       href="mailto:24293@hmh.or.kr"
