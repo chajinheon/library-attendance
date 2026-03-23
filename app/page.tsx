@@ -109,7 +109,16 @@ export default function Home() {
       }
 
       if (!student) {
-        setStatus({ type: 'error', message: '미등록 학생입니다.' });
+        // 첫 조회 실패 시 800ms 후 재시도 (Firebase 로딩 타이밍 이슈 대응)
+        await new Promise(r => setTimeout(r, 800));
+        const retrySnap = await getDoc(doc(db, 'students', studentId));
+        if (retrySnap.exists()) {
+          student = { ...retrySnap.data(), id: retrySnap.id } as Student;
+        }
+      }
+
+      if (!student) {
+        setStatus({ type: 'error', message: '다시 스캔해주세요.' });
       } else {
         const dedupeKey = `${student.studentId}_${today}`;
         const existing = await getDoc(doc(db, 'attendance_logs', dedupeKey));
