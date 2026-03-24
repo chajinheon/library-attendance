@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 // ────────────────────────────────────────────
 // Simple XOR-based obfuscation for localStorage
@@ -43,7 +44,7 @@ const MAX_ATTEMPTS = 10;
 const LOCKOUT_MS = 60 * 1000;
 const MASTER_KEY = '@@@@';
 
-type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide' | 'contact';
+type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide' | 'contact' | 'export';
 
 const gradeColors: Record<number, string> = {
   1: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -702,6 +703,176 @@ function GradeFilter({ value, onChange }: { value: number | 'all'; onChange: (v:
 }
 
 // ────────────────────────────────────────────
+// ────────────────────────────────────────────
+// Excel Export Tab Component
+// ────────────────────────────────────────────
+function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const firstOfMonth = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd');
+  const [startDate, setStartDate] = useState(firstOfMonth);
+  const [endDate, setEndDate] = useState(today);
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+
+  const handleExport = async () => {
+    if (!db || !startDate || !endDate) return;
+    if (startDate > endDate) {
+      toast({ title: '날짜 오류', description: '시작일이 종료일보다 늦을 수 없습니다.', variant: 'destructive' });
+      return;
+    }
+    setIsExporting(true);
+    try {
+      // 1. 기간 내 출석 로그 조회
+      const logsSnap = await getDocs(
+        query(collection(db, 'attendance_logs'),
+          where('date', '>=', startDate),
+          where('date', '<=', endDate),
+          orderBy('date', 'asc'))
+      );
+      const logs = logsSnap.docs.map(d => d.data() as { studentId: string; date: string });
+
+      // 2. 출석 set: "studentId_date"
+      const attendedSet = new Set(logs.map(l => `${l.studentId}_${l.date}`));
+
+      // 3. 기간 내 날짜 목록 생성
+      const dates: string[] = [];
+      const cur = new Date(startDate);
+      const end = new Date(endDate);
+      while (cur <= end) {
+        dates.push(format(cur, 'yyyy-MM-dd'));
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      // 4. 학생 맵
+      const studentMap = new Map<string, Student>();
+      students.forEach(s => studentMap.set(s.studentId, s));
+
+      // 5. 학년별 시트 생성
+      const wb = XLSX.utils.book_new();
+      const gradeNames: Record<number, string> = { 1: '1학년', 2: '2학년', 3: '3학년' };
+
+      for (const grade of [1, 2, 3]) {
+        const gradeStudents = students
+          .filter(s => s.grade === grade)
+          .sort((a, b) => a.classNum - b.classNum || a.number - b.number);
+
+        if (gradeStudents.length === 0) continue;
+
+        // 헤더 행: 반, 번호, 이름, 날짜들...
+        const header = ['반', '번호', '이름', ...dates.map(d => d.slice(5))]; // MM-DD 형식
+        const rows: (string | number)[][] = [header];
+
+        // 반 구분선 추가를 위해 반별로 그룹화
+        let prevClass = -1;
+        gradeStudents.forEach(s => {
+          if (prevClass !== -1 && s.classNum !== prevClass) {
+            // 빈 줄로 반 구분
+            rows.push(['', '', '', ...dates.map(() => '')]);
+          }
+          prevClass = s.classNum;
+          const dateCells = dates.map(d =>
+            attendedSet.has(`${s.studentId}_${d}`) ? 'O' : ''
+          );
+          rows.push([s.classNum, s.number, s.name, ...dateCells]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+
+        // 열 너비 설정
+        ws['!cols'] = [
+          { wch: 5 },  // 반
+          { wch: 5 },  // 번호
+          { wch: 10 }, // 이름
+          ...dates.map(() => ({ wch: 7 })),
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, gradeNames[grade]);
+      }
+
+      // 6. 다운로드
+      const fileName = `출석현황_${startDate}_${endDate}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast({ title: '내보내기 완료', description: `${fileName} 파일이 다운로드됐습니다.` });
+    } catch (e) {
+      toast({ title: '오류 발생', description: '엑셀 내보내기 중 오류가 발생했습니다.', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-lg font-black text-slate-800">엑셀 내보내기</h2>
+        <p className="text-sm text-slate-500 mt-1">기간을 선택하면 학년·반별로 정리된 출석 현황을 엑셀로 다운로드합니다.</p>
+      </div>
+
+      <Card className="border border-slate-200 shadow-sm">
+        <CardContent className="pt-6 space-y-5">
+          {/* 날짜 범위 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">시작일</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2672D9]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">종료일</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2672D9]"
+              />
+            </div>
+          </div>
+
+          {/* 빠른 선택 */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: '이번 달', start: format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'), end: today },
+              { label: '지난 달', start: format(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1), 'yyyy-MM-dd'), end: format(new Date(new Date().getFullYear(), new Date().getMonth(), 0), 'yyyy-MM-dd') },
+              { label: '최근 7일', start: format(new Date(Date.now() - 6 * 86400000), 'yyyy-MM-dd'), end: today },
+              { label: '최근 30일', start: format(new Date(Date.now() - 29 * 86400000), 'yyyy-MM-dd'), end: today },
+            ].map(({ label, start, end }) => (
+              <button
+                key={label}
+                onClick={() => { setStartDate(start); setEndDate(end); }}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#2672D9] hover:text-white text-slate-600 font-semibold transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* 안내 */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+            <p className="font-bold">📋 엑셀 파일 구성</p>
+            <ul className="list-disc list-inside space-y-0.5 text-blue-600 mt-1">
+              <li>시트 3개: 1학년 / 2학년 / 3학년</li>
+              <li>각 시트: 반 → 번호 순으로 정렬, 반 사이 빈 줄로 구분</li>
+              <li>출석한 날짜에 <strong>O</strong> 표시, 미출석은 빈칸</li>
+            </ul>
+          </div>
+
+          <Button
+            onClick={handleExport}
+            disabled={isExporting || !startDate || !endDate}
+            className="w-full bg-[#2672D9] rounded-xl gap-2 py-3"
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? '생성 중...' : '엑셀 다운로드'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // Attendance row component
 // ────────────────────────────────────────────
 function AttendanceRow({ entry }: { entry: AttendanceEntry }) {
@@ -1062,6 +1233,7 @@ export default function AdminPage() {
     { key: 'students', label: '학생 관리', icon: Users, badge: totalStudents },
     { key: 'barcode', label: '바코드 관리', icon: ScanBarcode, badge: barcodes.length },
     { key: 'settings', label: '비번 변경', icon: Shield },
+    { key: 'export', label: '엑셀 내보내기', icon: Download },
     { key: 'guide', label: '운용 가이드', icon: BookMarked },
     { key: 'contact', label: '문의', icon: MessageCircle },
   ];
@@ -1934,6 +2106,11 @@ export default function AdminPage() {
               </div>
 
             </div>
+          )}
+
+          {/* ── 엑셀 내보내기 탭 ── */}
+          {activeTab === 'export' && (
+            <ExcelExportTab db={db} students={students} />
           )}
 
           {/* 문의 탭 */}
