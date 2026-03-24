@@ -705,7 +705,7 @@ function GradeFilter({ value, onChange }: { value: number | 'all'; onChange: (v:
 // ────────────────────────────────────────────
 // 출석부 다운로드 Tab Component
 // ────────────────────────────────────────────
-function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
+function ExcelExportTab({ db }: { db: any }) {
   const today = format(new Date(), 'yyyy-MM-dd');
   const firstOfMonth = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd');
   const [startDate, setStartDate] = useState(firstOfMonth);
@@ -717,97 +717,87 @@ function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
   const toggleGrade = (g: number) =>
     setSelectedGrades(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g].sort());
 
+  const fmtDate = (d: string) => d ? `${parseInt(d.slice(5, 7))}월 ${parseInt(d.slice(8, 10))}일` : '';
+
   const handleExport = async () => {
-    if (!db) { toast({ title: '오류', description: 'Firebase 연결이 아직 준비되지 않았습니다.', variant: 'destructive' }); return; }
+    if (!db) { toast({ title: '오류', description: 'Firebase 연결이 준비되지 않았습니다.', variant: 'destructive' }); return; }
     if (!startDate || !endDate) { toast({ title: '날짜를 선택해주세요', variant: 'destructive' } as any); return; }
     if (startDate > endDate) { toast({ title: '날짜 오류', description: '시작일이 종료일보다 늦을 수 없습니다.', variant: 'destructive' }); return; }
-    if (selectedGrades.length === 0) { toast({ title: '학년을 선택해주세요', description: '최소 1개 이상의 학년을 선택하세요.', variant: 'destructive' }); return; }
+    if (selectedGrades.length === 0) { toast({ title: '학년을 선택해주세요', variant: 'destructive' } as any); return; }
 
     setIsExporting(true);
     try {
-      // xlsx 동적 import (SSR 오류 방지)
       const XLSX = await import('xlsx');
 
-      // 1. 기간 내 출석 로그 조회
+      // 1. 학생 데이터 직접 조회 (prop 타이밍 문제 방지)
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      const allStudents: Student[] = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Student));
+
+      // 2. 출석 로그 조회
       const logsSnap = await getDocs(
-        query(
-          collection(db, 'attendance_logs'),
+        query(collection(db, 'attendance_logs'),
           where('date', '>=', startDate),
-          where('date', '<=', endDate)
-        )
+          where('date', '<=', endDate))
       );
       const logs = logsSnap.docs.map(d => d.data() as { studentId: string; date: string });
-
-      // 2. 출석 set: "studentId_date"
       const attendedSet = new Set(logs.map(l => `${l.studentId}_${l.date}`));
 
-      // 3. 기간 내 날짜 목록 생성 (주말 제외 없이 전부)
+      // 3. 날짜 목록
       const dates: string[] = [];
       const cur = new Date(startDate + 'T00:00:00');
       const endD = new Date(endDate + 'T00:00:00');
-      while (cur <= endD) {
-        dates.push(format(cur, 'yyyy-MM-dd'));
-        cur.setDate(cur.getDate() + 1);
-      }
+      while (cur <= endD) { dates.push(format(cur, 'yyyy-MM-dd')); cur.setDate(cur.getDate() + 1); }
 
       // 4. 워크북 생성
       const wb = XLSX.utils.book_new();
       const gradeNames: Record<number, string> = { 1: '1학년', 2: '2학년', 3: '3학년' };
 
       for (const grade of selectedGrades) {
-        const gradeStudents = students
-          .filter(s => s.grade === grade)
-          .sort((a, b) => a.classNum !== b.classNum ? a.classNum - b.classNum : a.number - b.number);
+        const gradeStudents = allStudents
+          .filter(s => Number(s.grade) === grade)
+          .sort((a, b) => Number(a.classNum) !== Number(b.classNum) ? Number(a.classNum) - Number(b.classNum) : Number(a.number) - Number(b.number));
 
         if (gradeStudents.length === 0) continue;
 
-        // 헤더 행
         const dateHeaders = dates.map(d => `${parseInt(d.slice(5, 7))}/${parseInt(d.slice(8, 10))}`);
         const rows: (string | number)[][] = [
-          [`${grade}학년 출석 현황 (${startDate} ~ ${endDate})`],
+          [`${grade}학년 야간자기주도학습 출석 현황 (${fmtDate(startDate)} ~ ${fmtDate(endDate)})`],
           [],
           ['반', '번호', '이름', ...dateHeaders, '출석 합계'],
         ];
 
-        // 반별 그룹화
         const byClass = new Map<number, Student[]>();
         gradeStudents.forEach(s => {
-          if (!byClass.has(s.classNum)) byClass.set(s.classNum, []);
-          byClass.get(s.classNum)!.push(s);
+          const cn = Number(s.classNum);
+          if (!byClass.has(cn)) byClass.set(cn, []);
+          byClass.get(cn)!.push(s);
         });
 
-        byClass.forEach((classStudents, classNum) => {
-          // 반 구분 헤더
-          rows.push([`── ${classNum}반 ──`, '', '', ...dates.map(() => ''), '']);
-          // 학생 행 (번호 순 정렬)
-          classStudents
-            .sort((a, b) => a.number - b.number)
-            .forEach(s => {
-              const dateCells = dates.map(d => attendedSet.has(`${s.studentId}_${d}`) ? 'O' : '');
-              const total = dateCells.filter(c => c === 'O').length;
-              rows.push([classNum, s.number, s.name, ...dateCells, total]);
-            });
-          rows.push([]); // 반 사이 빈 줄
-        });
+        Array.from(byClass.entries())
+          .sort(([a], [b]) => a - b)
+          .forEach(([classNum, classStudents]) => {
+            rows.push([`[ ${classNum}반 ]`, '', '', ...dates.map(() => ''), '']);
+            classStudents
+              .sort((a, b) => Number(a.number) - Number(b.number))
+              .forEach(s => {
+                const dateCells = dates.map(d => attendedSet.has(`${s.studentId}_${d}`) ? 'O' : '');
+                const total = dateCells.filter(c => c === 'O').length;
+                rows.push([classNum, Number(s.number), s.name, ...dateCells, total]);
+              });
+            rows.push([]);
+          });
 
         const ws = XLSX.utils.aoa_to_sheet(rows);
-
-        // 열 너비
-        ws['!cols'] = [
-          { wch: 6 },   // 반
-          { wch: 5 },   // 번호
-          { wch: 10 },  // 이름
-          ...dates.map(() => ({ wch: 6 })),
-          { wch: 10 },  // 합계
-        ];
-
-        // 제목 병합
+        ws['!cols'] = [{ wch: 6 }, { wch: 5 }, { wch: 10 }, ...dates.map(() => ({ wch: 6 })), { wch: 10 }];
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 + dates.length } }];
-
         XLSX.utils.book_append_sheet(wb, ws, gradeNames[grade]);
       }
 
-      // 5. 브라우저 다운로드
+      if (wb.SheetNames.length === 0) {
+        toast({ title: '데이터 없음', description: '선택한 학년의 학생 데이터가 없습니다.', variant: 'destructive' });
+        return;
+      }
+
       const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbOut], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -845,19 +835,20 @@ function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
 
           {/* ① 기간 선택 */}
           <div>
-            <p className="text-xs font-bold text-slate-600 mb-2">① 기간 선택</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">시작일</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2672D9]" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">종료일</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2672D9]" />
-              </div>
+            <p className="text-xs font-bold text-slate-600 mb-3">① 기간 선택</p>
+            <div className="flex items-center gap-2 mb-3">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2672D9]" />
+              <span className="text-slate-400 font-bold text-sm shrink-0">부터</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2672D9]" />
+              <span className="text-slate-400 font-bold text-sm shrink-0">까지</span>
             </div>
+            {startDate && endDate && (
+              <p className="text-xs text-[#2672D9] font-semibold mb-3">
+                {fmtDate(startDate)} ~ {fmtDate(endDate)}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {quickRanges.map(({ label, start, end }) => (
                 <button key={label} onClick={() => { setStartDate(start); setEndDate(end); }}
@@ -883,9 +874,6 @@ function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
                       : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
                   )}>
                   {g}학년
-                  <span className="block text-xs font-normal mt-0.5 opacity-70">
-                    {students.filter(s => s.grade === g).length}명
-                  </span>
                 </button>
               ))}
             </div>
@@ -907,7 +895,7 @@ function ExcelExportTab({ db, students }: { db: any; students: Student[] }) {
           <Button onClick={handleExport} disabled={isExporting || !startDate || !endDate || selectedGrades.length === 0}
             className="w-full bg-[#2672D9] rounded-xl gap-2 py-3 text-sm font-bold">
             <Download className="w-4 h-4" />
-            {isExporting ? '파일 생성 중...' : `출석부 엑셀 다운로드 (${selectedGrades.map(g => `${g}학년`).join(', ')})`}
+            {isExporting ? '파일 생성 중...' : `출석부 다운로드 (${selectedGrades.map(g => `${g}학년`).join(', ')})`}
           </Button>
         </CardContent>
       </Card>
@@ -2152,7 +2140,7 @@ export default function AdminPage() {
 
           {/* ── 엑셀 내보내기 탭 ── */}
           {activeTab === 'export' && (
-            <ExcelExportTab db={db} students={students} />
+            <ExcelExportTab db={db} />
           )}
 
           {/* 문의 탭 */}
