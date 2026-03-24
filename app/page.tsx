@@ -228,7 +228,7 @@ export default function Home() {
           <div className="w-12 h-12 bg-[#2672D9] rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-200">H</div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-slate-800 leading-tight">효명고등학교 야간자기주도 학습</h1>
+              <h1 className="text-base font-black text-slate-800 leading-tight whitespace-nowrap">효명고등학교 야간자기주도 학습</h1>
               <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-md">BETA</span>
             </div>
             <p className="text-[10px] text-slate-400 font-bold tracking-widest">HYOMYUNG SMART ROLL CALL</p>
