@@ -22,17 +22,49 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 // ────────────────────────────────────────────
-// Simple XOR-based obfuscation for localStorage
+// SHA-256 비밀번호 해싱 (Web Crypto API - 신규)
+// 구버전 XOR 난독화 → SHA-256으로 자동 마이그레이션
 // ────────────────────────────────────────────
-const SALT = 'hm_admin_2025';
-function obfuscate(text: string): string {
-  return btoa(text.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ SALT.charCodeAt(i % SALT.length))).join(''));
+const HASH_SALT = 'hm_admin_2025';
+const HASH_PREFIX = 'sha256:';
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + HASH_SALT);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return HASH_PREFIX + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-function deobfuscate(encoded: string): string {
+
+// 구버전 XOR 복호화 (마이그레이션 읽기 전용)
+function legacyDeobfuscate(encoded: string): string {
   try {
     const text = atob(encoded);
-    return text.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ SALT.charCodeAt(i % SALT.length))).join('');
+    return text.split('').map((c, i) =>
+      String.fromCharCode(c.charCodeAt(0) ^ HASH_SALT.charCodeAt(i % HASH_SALT.length))
+    ).join('');
   } catch { return ''; }
+}
+
+async function verifyPassword(input: string, stored: string): Promise<boolean> {
+  if (stored.startsWith(HASH_PREFIX)) {
+    return (await hashPassword(input)) === stored;
+  }
+  // 구버전 XOR 형식 - 마이그레이션 경로
+  return input === legacyDeobfuscate(stored);
+}
+
+// ── 세션 관리 ──
+const SESSION_KEY = 'admin_session_expiry';
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15분
+
+function setSessionExpiry() {
+  sessionStorage.setItem(SESSION_KEY, String(Date.now() + SESSION_TIMEOUT_MS));
+}
+
+function isSessionValid(): boolean {
+  const expiry = parseInt(sessionStorage.getItem(SESSION_KEY) ?? '0');
+  return Date.now() < expiry;
 }
 
 const DEFAULT_PASSWORD = 'admin1234';
@@ -540,11 +572,12 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
     return () => clearInterval(t);
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     // 마스터 키는 잠금 중에도 항상 통과
     if (password === MASTER_KEY) {
       localStorage.setItem(ATTEMPTS_KEY, '0');
       localStorage.removeItem(LOCKOUT_KEY);
+      setSessionExpiry();
       onLogin();
       return;
     }
@@ -553,21 +586,34 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
     if (Date.now() < lockoutUntil) return;
 
     const stored = localStorage.getItem(AUTH_KEY);
-    const currentPw = stored ? deobfuscate(stored) : DEFAULT_PASSWORD;
 
-    if (password === currentPw) {
-      localStorage.setItem(ATTEMPTS_KEY, '0');
-      onLogin();
-    } else {
-      const attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) ?? '0') + 1;
-      localStorage.setItem(ATTEMPTS_KEY, String(attempts));
-      if (attempts >= MAX_ATTEMPTS) {
-        localStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+    try {
+      const isValid = stored
+        ? await verifyPassword(password, stored)
+        : password === DEFAULT_PASSWORD;
+
+      if (isValid) {
+        // 구버전 XOR → SHA-256 자동 마이그레이션
+        if (stored && !stored.startsWith(HASH_PREFIX)) {
+          localStorage.setItem(AUTH_KEY, await hashPassword(password));
+        }
         localStorage.setItem(ATTEMPTS_KEY, '0');
-        setError(`${MAX_ATTEMPTS}회 실패. 1분간 잠금됩니다.`);
+        setSessionExpiry();
+        onLogin();
       } else {
-        setError(`비밀번호가 틀렸습니다. (${attempts}/${MAX_ATTEMPTS})`);
+        const attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) ?? '0') + 1;
+        localStorage.setItem(ATTEMPTS_KEY, String(attempts));
+        if (attempts >= MAX_ATTEMPTS) {
+          localStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+          localStorage.setItem(ATTEMPTS_KEY, '0');
+          setError(`${MAX_ATTEMPTS}회 실패. 1분간 잠금됩니다.`);
+        } else {
+          setError(`비밀번호가 틀렸습니다. (${attempts}/${MAX_ATTEMPTS})`);
+        }
+        setPassword('');
       }
+    } catch {
+      setError('인증 중 오류가 발생했습니다. 다시 시도해주세요.');
       setPassword('');
     }
   };
@@ -980,6 +1026,31 @@ export default function AdminPage() {
     return () => clearInterval(t);
   }, []);
 
+  // ── 세션 타임아웃: 15분 비활성 시 자동 로그아웃 ──
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleActivity = () => setSessionExpiry();
+    window.addEventListener('mousedown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+
+    const checkExpiry = setInterval(() => {
+      if (!isSessionValid()) {
+        sessionStorage.removeItem(SESSION_KEY);
+        setIsAuthenticated(false);
+        toast({ title: '세션 만료', description: '15분간 활동이 없어 자동 로그아웃되었습니다.' });
+      }
+    }, 30_000); // 30초마다 체크
+
+    return () => {
+      window.removeEventListener('mousedown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      clearInterval(checkExpiry);
+    };
+  }, [isAuthenticated]);
+
   // Password change
   const [newPassword, setNewPassword] = useState('');
   const [pwChangeMsg, setPwChangeMsg] = useState('');
@@ -1089,7 +1160,7 @@ export default function AdminPage() {
     .sort((a, b) => a.studentId.localeCompare(b.studentId));
 
   // ── 1105 trigger ──
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (newPassword === '1105') {
       setShowSecretStats(true);
       setNewPassword('');
@@ -1099,7 +1170,7 @@ export default function AdminPage() {
       setPwChangeMsg('4자 이상 입력하세요.');
       return;
     }
-    localStorage.setItem(AUTH_KEY, obfuscate(newPassword));
+    localStorage.setItem(AUTH_KEY, await hashPassword(newPassword));
     setPwChangeMsg('비밀번호가 변경되었습니다.');
     setNewPassword('');
     setTimeout(() => setPwChangeMsg(''), 3000);
@@ -1379,7 +1450,10 @@ export default function AdminPage() {
             </button>
           </Link>
           <button
-            onClick={() => setIsAuthenticated(false)}
+            onClick={() => {
+              sessionStorage.removeItem(SESSION_KEY);
+              setIsAuthenticated(false);
+            }}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-400 hover:text-red-400 hover:bg-red-950/30 transition-all"
           >
             <LogOut className="w-4 h-4" />

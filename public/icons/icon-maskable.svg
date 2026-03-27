@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- maskable: safe zone = 중앙 80% (40px 패딩) -->
+  <rect width="512" height="512" fill="#2672D9"/>
+  <text
+    x="256"
+    y="320"
+    font-family="Arial Black, Arial, sans-serif"
+    font-size="230"
+    font-weight="900"
+    text-anchor="middle"
+    fill="#FFFFFF"
+  >H</text>
+</svg>
