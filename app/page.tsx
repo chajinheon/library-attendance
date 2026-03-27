@@ -40,6 +40,7 @@ export default function Home() {
   const isProcessingRef = useRef(false);
   const scannerInstanceRef = useRef<Html5Qrcode | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scannerIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -71,7 +72,7 @@ export default function Home() {
     };
   }, []);
 
-  // ── 30초 비활성 자동 초기화 ──
+  // ── 키패드 30초 비활성 자동 초기화 ──
   useEffect(() => {
     if (isScannerActive) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -82,6 +83,19 @@ export default function Home() {
     return () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
   }, [input, isScannerActive]);
 
+  // ── 스캔 모드 30초 방치 시 자동 키패드 복귀 ──
+  useEffect(() => {
+    if (!isScannerActive) {
+      if (scannerIdleTimerRef.current) clearTimeout(scannerIdleTimerRef.current);
+      return;
+    }
+    scannerIdleTimerRef.current = setTimeout(() => {
+      setIsScannerActive(false);
+      setStatus({ type: 'idle', message: '학번 입력 또는 바코드를 스캔하세요' });
+    }, 30000);
+    return () => { if (scannerIdleTimerRef.current) clearTimeout(scannerIdleTimerRef.current); };
+  }, [isScannerActive]);
+
   const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
   const { data: dbStudents = [] } = useCollection<Student>(studentsQuery);
 
@@ -89,6 +103,14 @@ export default function Home() {
   const { data: attendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
 
   const processCheckIn = async (rawInput: string, isFromScanner: boolean) => {
+    // 스캔 감지 시 30초 타이머 리셋 (활발히 쓰는 중엔 꺼지지 않음)
+    if (isFromScanner) {
+      if (scannerIdleTimerRef.current) clearTimeout(scannerIdleTimerRef.current);
+      scannerIdleTimerRef.current = setTimeout(() => {
+        setIsScannerActive(false);
+        setStatus({ type: 'idle', message: '학번 입력 또는 바코드를 스캔하세요' });
+      }, 30000);
+    }
     if (isProcessingRef.current || !db || !today) return;
     isProcessingRef.current = true;
     setStatus({ type: 'loading', message: '정보 확인 중...' });
