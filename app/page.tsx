@@ -17,6 +17,9 @@ import { cn } from '@/lib/utils';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { normalizeBarcodeValue } from '@/lib/barcode-utils';
 import { dailyBackupToNotion } from '@/lib/daily-backup';
+import { DEMO_STUDENTS, DEMO_ATTENDANCE_INITIAL } from '@/lib/demo-data';
+
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 export default function Home() {
   const db = useFirestore();
@@ -96,11 +99,17 @@ export default function Home() {
     return () => { if (scannerIdleTimerRef.current) clearTimeout(scannerIdleTimerRef.current); };
   }, [isScannerActive]);
 
-  const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
+  // ── 데모 모드: 로컬 state로 출석 관리 ──
+  const [demoAttendance, setDemoAttendance] = useState<AttendanceEntry[]>(IS_DEMO ? DEMO_ATTENDANCE_INITIAL : []);
+
+  const studentsQuery = useMemoFirebase(() => (!IS_DEMO && db) ? collection(db, 'students') : null, [db]);
   const { data: dbStudents = [] } = useCollection<Student>(studentsQuery);
 
-  const attendanceQuery = useMemoFirebase(() => today && db ? query(collection(db, 'attendance_logs'), where('date', '==', today)) : null, [db, today]);
-  const { data: attendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
+  const attendanceQuery = useMemoFirebase(() => (!IS_DEMO && today && db) ? query(collection(db, 'attendance_logs'), where('date', '==', today)) : null, [db, today]);
+  const { data: firestoreAttendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
+
+  const students = IS_DEMO ? DEMO_STUDENTS : dbStudents;
+  const attendance = IS_DEMO ? demoAttendance : firestoreAttendance;
 
   const processCheckIn = async (rawInput: string, isFromScanner: boolean) => {
     // 스캔 감지 시 30초 타이머 리셋 (활발히 쓰는 중엔 꺼지지 않음)
@@ -111,96 +120,107 @@ export default function Home() {
         setStatus({ type: 'idle', message: '학번 입력 또는 바코드를 스캔하세요' });
       }, 30000);
     }
-    if (isProcessingRef.current || !db || !today) return;
+    if (isProcessingRef.current || (!IS_DEMO && !db) || !today) return;
     isProcessingRef.current = true;
     setStatus({ type: 'loading', message: '정보 확인 중...' });
 
     try {
       const normalized = isFromScanner ? normalizeBarcodeValue(rawInput) : rawInput.trim();
-      let studentId = normalized;
+      const studentId = normalized;
 
-      if (isFromScanner) {
-        const mappingSnap = await getDoc(doc(db, 'barcode_mappings', normalized));
-        if (mappingSnap.exists()) studentId = mappingSnap.data().studentId;
-      }
-
-      let student = dbStudents.find(s => s.studentId === studentId);
-      if (!student) {
-        const snap = await getDoc(doc(db, 'students', studentId));
-        if (snap.exists()) student = { ...snap.data(), id: snap.id } as Student;
-      }
-
-      if (!student) {
-        // 첫 조회 실패 시 800ms 후 재시도 (Firebase 로딩 타이밍 이슈 대응)
-        await new Promise(r => setTimeout(r, 800));
-        const retrySnap = await getDoc(doc(db, 'students', studentId));
-        if (retrySnap.exists()) {
-          student = { ...retrySnap.data(), id: retrySnap.id } as Student;
-        }
-      }
+      const student = students.find(s => s.studentId === studentId)
+        ?? (!IS_DEMO && db ? await getDoc(doc(db, 'students', studentId)).then(s => s.exists() ? { ...s.data(), id: s.id } as Student : null) : null);
 
       if (!student) {
         setStatus({ type: 'error', message: '다시 스캔해주세요.' });
       } else {
         const checkinKey = `${student.studentId}_${today}_in`;
         const checkoutKey = `${student.studentId}_${today}_out`;
-
-        const [checkinSnap, checkoutSnap] = await Promise.all([
-          getDoc(doc(db, 'attendance_logs', checkinKey)),
-          getDoc(doc(db, 'attendance_logs', checkoutKey)),
-        ]);
-
         const classNum = parseInt(student.studentId.slice(1, 3));
         const num = parseInt(student.studentId.slice(3, 5));
 
-        if (!checkinSnap.exists()) {
-          // ── 입실 처리 ──
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'attendance_logs', checkinKey), {
-            id: checkinKey, studentId: student.studentId, studentName: student.name,
-            timestamp: serverTimestamp(), date: today, grade: student.grade,
-            type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkin'
-          });
-          if (isFromScanner) {
-            batch.set(doc(db, 'card_scans', checkinKey), {
-              id: checkinKey, rawCode: normalized, studentId: student.studentId,
-              studentName: student.name, timestamp: serverTimestamp(), date: today,
-              monthKey: currentMonth, grade: student.grade, point: 1
-            });
+        if (IS_DEMO) {
+          // ── 데모 모드: 로컬 state로 시뮬레이션 ──
+          const hasCheckin = demoAttendance.some(e => e.id === checkinKey);
+          const hasCheckout = demoAttendance.some(e => e.id === checkoutKey);
+
+          const fakeTs = { toDate: () => new Date(), toMillis: () => Date.now() } as any;
+
+          if (!hasCheckin) {
+            setDemoAttendance(prev => [...prev, {
+              id: checkinKey, studentId: student.studentId, studentName: student.name,
+              timestamp: fakeTs, date: today, grade: student.grade,
+              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkin',
+            }]);
+            setStatus({ type: 'success', message: `${student.name}님, 입실 완료!`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkin' });
+            setTimeout(() => setCheckInOverlay(null), 3000);
+          } else if (!hasCheckout) {
+            setDemoAttendance(prev => [...prev, {
+              id: checkoutKey, studentId: student.studentId, studentName: student.name,
+              timestamp: fakeTs, date: today, grade: student.grade,
+              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout',
+            }]);
+            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
+            setTimeout(() => setCheckInOverlay(null), 3000);
+          } else {
+            setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
           }
-          await batch.commit();
-
-          syncToNotion({
-            studentId: student.studentId, studentName: student.name, grade: student.grade,
-            date: today, monthKey: currentMonth, monthDisplay: currentMonthDisplay, isCardScan: isFromScanner
-          });
-
-          const backupKey = `backup_${today}`;
-          if (!localStorage.getItem(backupKey)) {
-            dailyBackupToNotion(db).then(() => localStorage.setItem(backupKey, 'done'));
-          }
-
-          setStatus({ type: 'success', message: `${student.name}님, 입실 완료!`, name: student.name });
-          setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkin' });
-          setTimeout(() => setCheckInOverlay(null), 3000);
-
-        } else if (!checkoutSnap.exists()) {
-          // ── 퇴실 처리 ──
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'attendance_logs', checkoutKey), {
-            id: checkoutKey, studentId: student.studentId, studentName: student.name,
-            timestamp: serverTimestamp(), date: today, grade: student.grade,
-            type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout'
-          });
-          await batch.commit();
-
-          setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
-          setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
-          setTimeout(() => setCheckInOverlay(null), 3000);
 
         } else {
-          // ── 입실·퇴실 모두 완료 ──
-          setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
+          // ── 실제 Firebase 모드 ──
+          const [checkinSnap, checkoutSnap] = await Promise.all([
+            getDoc(doc(db!, 'attendance_logs', checkinKey)),
+            getDoc(doc(db!, 'attendance_logs', checkoutKey)),
+          ]);
+
+          if (!checkinSnap.exists()) {
+            const batch = writeBatch(db!);
+            batch.set(doc(db!, 'attendance_logs', checkinKey), {
+              id: checkinKey, studentId: student.studentId, studentName: student.name,
+              timestamp: serverTimestamp(), date: today, grade: student.grade,
+              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkin'
+            });
+            if (isFromScanner) {
+              batch.set(doc(db!, 'card_scans', checkinKey), {
+                id: checkinKey, rawCode: normalized, studentId: student.studentId,
+                studentName: student.name, timestamp: serverTimestamp(), date: today,
+                monthKey: currentMonth, grade: student.grade, point: 1
+              });
+            }
+            await batch.commit();
+
+            syncToNotion({
+              studentId: student.studentId, studentName: student.name, grade: student.grade,
+              date: today, monthKey: currentMonth, monthDisplay: currentMonthDisplay, isCardScan: isFromScanner
+            });
+
+            const backupKey = `backup_${today}`;
+            if (!localStorage.getItem(backupKey)) {
+              dailyBackupToNotion(db!).then(() => localStorage.setItem(backupKey, 'done'));
+            }
+
+            setStatus({ type: 'success', message: `${student.name}님, 입실 완료!`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkin' });
+            setTimeout(() => setCheckInOverlay(null), 3000);
+
+          } else if (!checkoutSnap.exists()) {
+            const batch = writeBatch(db!);
+            batch.set(doc(db!, 'attendance_logs', checkoutKey), {
+              id: checkoutKey, studentId: student.studentId, studentName: student.name,
+              timestamp: serverTimestamp(), date: today, grade: student.grade,
+              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout'
+            });
+            await batch.commit();
+
+            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
+            setTimeout(() => setCheckInOverlay(null), 3000);
+
+          } else {
+            setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
+          }
         }
       }
     } catch (err: any) {
@@ -243,7 +263,14 @@ export default function Home() {
   }, [isScannerActive]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col p-4 md:p-8 space-y-6">
+    <div className={`min-h-screen bg-[#F8FAFC] flex flex-col p-4 md:p-8 space-y-6 ${IS_DEMO ? 'pt-10' : ''}`}>
+
+      {/* ── 데모 모드 배너 ── */}
+      {IS_DEMO && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-violet-600 text-white text-center py-2 font-bold text-xs flex items-center justify-center gap-2 shadow-lg">
+          🧪 DEMO 모드 — Firebase 미연결, 더미 데이터로 동작 중
+        </div>
+      )}
 
       {/* ── 오프라인 배너 ── */}
       {!isOnline && (
