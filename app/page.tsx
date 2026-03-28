@@ -35,7 +35,7 @@ export default function Home() {
 
   // ── 추가 state ──
   const [isOnline, setIsOnline] = useState(true);
-  const [checkInOverlay, setCheckInOverlay] = useState<{ name: string; grade: number; classNum: number; num: number } | null>(null);
+  const [checkInOverlay, setCheckInOverlay] = useState<{ name: string; grade: number; classNum: number; num: number; entryType: 'checkin' | 'checkout' } | null>(null);
 
   const isProcessingRef = useRef(false);
   const scannerInstanceRef = useRef<Html5Qrcode | null>(null);
@@ -142,19 +142,28 @@ export default function Home() {
       if (!student) {
         setStatus({ type: 'error', message: '다시 스캔해주세요.' });
       } else {
-        const dedupeKey = `${student.studentId}_${today}`;
-        const existing = await getDoc(doc(db, 'attendance_logs', dedupeKey));
-        if (existing.exists()) {
-          setStatus({ type: 'warning', message: '이미 출석 완료되었습니다.', name: student.name });
-        } else {
+        const checkinKey = `${student.studentId}_${today}_in`;
+        const checkoutKey = `${student.studentId}_${today}_out`;
+
+        const [checkinSnap, checkoutSnap] = await Promise.all([
+          getDoc(doc(db, 'attendance_logs', checkinKey)),
+          getDoc(doc(db, 'attendance_logs', checkoutKey)),
+        ]);
+
+        const classNum = parseInt(student.studentId.slice(1, 3));
+        const num = parseInt(student.studentId.slice(3, 5));
+
+        if (!checkinSnap.exists()) {
+          // ── 입실 처리 ──
           const batch = writeBatch(db);
-          batch.set(doc(db, 'attendance_logs', dedupeKey), {
-            id: dedupeKey, studentId: student.studentId, studentName: student.name,
-            timestamp: serverTimestamp(), date: today, grade: student.grade, type: isFromScanner ? 'scan' : 'keypad'
+          batch.set(doc(db, 'attendance_logs', checkinKey), {
+            id: checkinKey, studentId: student.studentId, studentName: student.name,
+            timestamp: serverTimestamp(), date: today, grade: student.grade,
+            type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkin'
           });
           if (isFromScanner) {
-            batch.set(doc(db, 'card_scans', dedupeKey), {
-              id: dedupeKey, rawCode: normalized, studentId: student.studentId,
+            batch.set(doc(db, 'card_scans', checkinKey), {
+              id: checkinKey, rawCode: normalized, studentId: student.studentId,
               studentName: student.name, timestamp: serverTimestamp(), date: today,
               monthKey: currentMonth, grade: student.grade, point: 1
             });
@@ -171,13 +180,27 @@ export default function Home() {
             dailyBackupToNotion(db).then(() => localStorage.setItem(backupKey, 'done'));
           }
 
-          setStatus({ type: 'success', message: `${student.name}님, 체크인 완료!`, name: student.name });
-
-          // ── 체크인 완료 오버레이 (3초) ──
-          const classNum = parseInt(student.studentId.slice(1, 3));
-          const num = parseInt(student.studentId.slice(3, 5));
-          setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num });
+          setStatus({ type: 'success', message: `${student.name}님, 입실 완료!`, name: student.name });
+          setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkin' });
           setTimeout(() => setCheckInOverlay(null), 3000);
+
+        } else if (!checkoutSnap.exists()) {
+          // ── 퇴실 처리 ──
+          const batch = writeBatch(db);
+          batch.set(doc(db, 'attendance_logs', checkoutKey), {
+            id: checkoutKey, studentId: student.studentId, studentName: student.name,
+            timestamp: serverTimestamp(), date: today, grade: student.grade,
+            type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout'
+          });
+          await batch.commit();
+
+          setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
+          setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
+          setTimeout(() => setCheckInOverlay(null), 3000);
+
+        } else {
+          // ── 입실·퇴실 모두 완료 ──
+          setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
         }
       }
     } catch (err: any) {
@@ -229,13 +252,19 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── 체크인 완료 오버레이 ── */}
+      {/* ── 입실/퇴실 완료 오버레이 ── */}
       {checkInOverlay && (
-        <div className="fixed inset-0 z-40 bg-gradient-to-br from-[#1a5fc8] to-[#2672D9] flex flex-col items-center justify-center text-white">
+        <div className={`fixed inset-0 z-40 flex flex-col items-center justify-center text-white ${
+          checkInOverlay.entryType === 'checkin'
+            ? 'bg-gradient-to-br from-[#1a5fc8] to-[#2672D9]'
+            : 'bg-gradient-to-br from-emerald-600 to-emerald-500'
+        }`}>
           <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-8">
             <CheckCircle2 className="w-14 h-14 text-white" />
           </div>
-          <p className="text-lg font-semibold mb-2 opacity-70 tracking-widest uppercase">출석 완료</p>
+          <p className="text-lg font-semibold mb-2 opacity-70 tracking-widest uppercase">
+            {checkInOverlay.entryType === 'checkin' ? '입실 완료' : '퇴실 완료'}
+          </p>
           <p className="text-8xl font-black mb-4 tracking-tight">{checkInOverlay.name}</p>
           <div className="flex items-center gap-2 bg-white/15 rounded-2xl px-6 py-3">
             <p className="text-xl font-bold">

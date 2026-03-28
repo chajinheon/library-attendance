@@ -15,6 +15,7 @@ export interface AttendanceEntry {
   date: string; // yyyy-MM-dd
   grade: number;
   type: 'scan' | 'keypad';
+  entryType: 'checkin' | 'checkout'; // 입실 | 퇴실
 }
 
 export interface BarcodeMapping {
