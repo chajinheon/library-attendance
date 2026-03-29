@@ -92,7 +92,7 @@ function resetAttempts() {
   sessionStorage.removeItem(LOCKOUT_KEY);
 }
 
-const DEFAULT_PASSWORD = 'admin1234';
+const DEFAULT_PASSWORD = '@@@@';
 const AUTH_KEY = 'admin_auth';
 // ── [보안] lockout을 sessionStorage로 → 탭별 격리, localStorage 우회 차단 ──
 const LOCKOUT_KEY = 'admin_lockout_ss';
