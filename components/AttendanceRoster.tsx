@@ -65,9 +65,16 @@ export function AttendanceRoster({ entries }: Props) {
               ) : (
                 <UserCheck className="w-4 h-4 text-slate-400" />
               )}
-              <p className="text-sm text-slate-500 font-mono">
-                {entry.timestamp?.toDate ? format(entry.timestamp.toDate(), 'HH:mm:ss') : '--:--:--'}
-              </p>
+              <div className="flex flex-col items-end">
+                <p className="text-sm text-slate-500 font-mono">
+                  {entry.timestamp?.toDate ? format(entry.timestamp.toDate(), 'HH:mm:ss') : '--:--:--'}
+                </p>
+                {entry.studyDuration && (
+                  <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm mt-0.5">
+                    {entry.studyDuration} 학습
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         );

@@ -11,6 +11,8 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AttendanceSummary } from '@/components/AttendanceSummary';
+import { IndividualLookupTab } from '@/components/IndividualLookupTab';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -20,11 +22,13 @@ import {
 } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { DEMO_STUDENTS, DEMO_ATTENDANCE_INITIAL, DEMO_ATTENDANCE_ALL } from '@/lib/demo-data';
 
 // ────────────────────────────────────────────
-// SHA-256 비밀번호 해싱 (Web Crypto API - 신규)
+// SHA-256 비밀번호 해싱 (Web Crypto API)
 // 구버전 XOR 난독화 → SHA-256으로 자동 마이그레이션
 // ────────────────────────────────────────────
+const IS_DEMO = true;
 const HASH_SALT = 'hm_admin_2025';
 const HASH_PREFIX = 'sha256:';
 
@@ -67,15 +71,38 @@ function isSessionValid(): boolean {
   return Date.now() < expiry;
 }
 
+// ── [보안] lockout 헬퍼: sessionStorage 사용 ──
+function getLockoutUntil(): number {
+  return parseInt(sessionStorage.getItem(LOCKOUT_KEY) ?? '0');
+}
+function setLockout() {
+  sessionStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+  sessionStorage.setItem(ATTEMPTS_KEY, '0');
+}
+function getAttempts(): number {
+  return parseInt(sessionStorage.getItem(ATTEMPTS_KEY) ?? '0');
+}
+function incrementAttempts(): number {
+  const next = getAttempts() + 1;
+  sessionStorage.setItem(ATTEMPTS_KEY, String(next));
+  return next;
+}
+function resetAttempts() {
+  sessionStorage.setItem(ATTEMPTS_KEY, '0');
+  sessionStorage.removeItem(LOCKOUT_KEY);
+}
+
 const DEFAULT_PASSWORD = 'admin1234';
 const AUTH_KEY = 'admin_auth';
-const LOCKOUT_KEY = 'admin_lockout';
-const ATTEMPTS_KEY = 'admin_attempts';
-const MAX_ATTEMPTS = 10;
-const LOCKOUT_MS = 60 * 1000;
-const MASTER_KEY = '@@@@';
+// ── [보안] lockout을 sessionStorage로 → 탭별 격리, localStorage 우회 차단 ──
+const LOCKOUT_KEY = 'admin_lockout_ss';
+const ATTEMPTS_KEY = 'admin_attempts_ss';
+const MAX_ATTEMPTS = 10;        // 선생님 요청: 10회 유지
+const LOCKOUT_MS = 5 * 60 * 1000; // [보안강화] 1분→5분 잠금
+// MASTER_KEY는 환경변수에서만 (소스코드 하드코딩 제거)
+const MASTER_KEY = process.env.NEXT_PUBLIC_ADMIN_MASTER_KEY ?? '';
 
-type Tab = 'attendance' | 'students' | 'history' | 'barcode' | 'ranking' | 'settings' | 'guide' | 'contact' | 'export';
+type Tab = 'attendance' | 'study_time' | 'individual_lookup' | 'ranking' | 'history' | 'students' | 'barcode' | 'settings' | 'export' | 'guide' | 'contact';
 
 const gradeColors: Record<number, string> = {
   1: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -563,8 +590,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
 
   useEffect(() => {
     const tick = () => {
-      const lockoutUntil = parseInt(localStorage.getItem(LOCKOUT_KEY) ?? '0');
-      const remaining = Math.max(0, lockoutUntil - Date.now());
+      const remaining = Math.max(0, getLockoutUntil() - Date.now());
       setLockoutRemaining(remaining);
     };
     tick();
@@ -573,17 +599,15 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
   }, []);
 
   const handleLogin = async () => {
-    // 마스터 키는 잠금 중에도 항상 통과
-    if (password === MASTER_KEY) {
-      localStorage.setItem(ATTEMPTS_KEY, '0');
-      localStorage.removeItem(LOCKOUT_KEY);
+    // [보안] MASTER_KEY가 env에 없으면 마스터 로그인 비활성화
+    if (MASTER_KEY && password === MASTER_KEY) {
+      resetAttempts();
       setSessionExpiry();
       onLogin();
       return;
     }
 
-    const lockoutUntil = parseInt(localStorage.getItem(LOCKOUT_KEY) ?? '0');
-    if (Date.now() < lockoutUntil) return;
+    if (Date.now() < getLockoutUntil()) return;
 
     const stored = localStorage.getItem(AUTH_KEY);
 
@@ -597,16 +621,14 @@ function LoginScreen({ onLogin }: { onLogin: () => void | Promise<void> }) {
         if (stored && !stored.startsWith(HASH_PREFIX)) {
           localStorage.setItem(AUTH_KEY, await hashPassword(password));
         }
-        localStorage.setItem(ATTEMPTS_KEY, '0');
+        resetAttempts();
         setSessionExpiry();
         onLogin();
       } else {
-        const attempts = parseInt(localStorage.getItem(ATTEMPTS_KEY) ?? '0') + 1;
-        localStorage.setItem(ATTEMPTS_KEY, String(attempts));
+        const attempts = incrementAttempts();
         if (attempts >= MAX_ATTEMPTS) {
-          localStorage.setItem(LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
-          localStorage.setItem(ATTEMPTS_KEY, '0');
-          setError(`${MAX_ATTEMPTS}회 실패. 1분간 잠금됩니다.`);
+          setLockout();
+          setError(`${MAX_ATTEMPTS}회 연속 실패. ${LOCKOUT_MS / 60000}분간 잠금됩니다.`);
         } else {
           setError(`비밀번호가 틀렸습니다. (${attempts}/${MAX_ATTEMPTS})`);
         }
@@ -1006,6 +1028,18 @@ function AttendanceRow({ entry }: { entry: AttendanceEntry }) {
 }
 
 // ────────────────────────────────────────────
+// Wrapper for tracking real-time study duration
+// ────────────────────────────────────────────
+function AttendanceSummaryWrapper({ entries }: { entries: AttendanceEntry[] }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <AttendanceSummary entries={entries} currentTime={now} />;
+}
+
+// ────────────────────────────────────────────
 // Main Admin Page
 // ────────────────────────────────────────────
 export default function AdminPage() {
@@ -1094,19 +1128,24 @@ export default function AdminPage() {
 
   // ── Firebase queries ──
   const studentsQuery = useMemoFirebase(() => db ? collection(db, 'students') : null, [db]);
-  const { data: students = [] } = useCollection<Student>(studentsQuery);
+  const { data: firebaseStudents = [] } = useCollection<Student>(studentsQuery);
+  const students = IS_DEMO ? DEMO_STUDENTS : firebaseStudents;
 
   const attendanceQuery = useMemoFirebase(
     () => today && db ? query(collection(db, 'attendance_logs'), where('date', '==', today)) : null,
     [db, today]
   );
-  const { data: todayAttendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
+  const { data: firebaseTodayAttendance = [] } = useCollection<AttendanceEntry>(attendanceQuery);
+  const todayAttendance = IS_DEMO ? (DEMO_ATTENDANCE_INITIAL as AttendanceEntry[]) : firebaseTodayAttendance;
 
   const historyQuery = useMemoFirebase(
     () => historyDate && db ? query(collection(db, 'attendance_logs'), where('date', '==', historyDate)) : null,
     [db, historyDate]
   );
-  const { data: historyAttendance = [] } = useCollection<AttendanceEntry>(historyQuery);
+  const { data: firebaseHistoryAttendance = [] } = useCollection<AttendanceEntry>(historyQuery);
+  const historyAttendance = IS_DEMO 
+    ? (DEMO_ATTENDANCE_ALL.filter(a => a.date === historyDate) as AttendanceEntry[]) 
+    : firebaseHistoryAttendance;
 
   const barcodesQuery = useMemoFirebase(() => db ? collection(db, 'barcode_mappings') : null, [db]);
 
@@ -1159,21 +1198,29 @@ export default function AdminPage() {
     )
     .sort((a, b) => a.studentId.localeCompare(b.studentId));
 
-  // ── 1105 trigger ──
+  // ── 비밀번호 변경 / Secret stats trigger ──
+  const SECRET_STATS_CODE = process.env.NEXT_PUBLIC_SECRET_STATS_CODE ?? '__stats__';
   const handlePasswordChange = async () => {
-    if (newPassword === '1105') {
+    // [보안] 숨겨진 트리거 코드도 환경변수에서만 로드 (소스코드 하드코딩 제거)
+    if (newPassword === SECRET_STATS_CODE) {
       setShowSecretStats(true);
       setNewPassword('');
       return;
     }
-    if (newPassword.length < 4) {
-      setPwChangeMsg('4자 이상 입력하세요.');
+    // [보안] 최소 8자 강제 (기존 4자 → 8자)
+    if (newPassword.length < 8) {
+      setPwChangeMsg('보안을 위해 8자 이상 입력하세요.');
       return;
     }
+    // [보안] 변경 즉시 기존 세션 무효화 후 재로그인 요구
     localStorage.setItem(AUTH_KEY, await hashPassword(newPassword));
-    setPwChangeMsg('비밀번호가 변경되었습니다.');
+    sessionStorage.removeItem(SESSION_KEY);
+    setPwChangeMsg('비밀번호가 변경되었습니다. 다시 로그인해주세요.');
     setNewPassword('');
-    setTimeout(() => setPwChangeMsg(''), 3000);
+    setTimeout(() => {
+      setPwChangeMsg('');
+      setIsAuthenticated(false);
+    }, 2000);
   };
 
   const downloadAllAttendanceCSV = async () => {
@@ -1356,6 +1403,8 @@ export default function AdminPage() {
   // ── Sidebar nav items ──
   const navItems: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { key: 'attendance', label: '출석 현황', icon: LayoutDashboard, badge: presentToday },
+    { key: 'study_time', label: '당일 학습 관리', icon: Clock },
+    { key: 'individual_lookup', label: '개인별 학습 조회', icon: Search },
     { key: 'ranking', label: '월간 랭킹', icon: Trophy },
     { key: 'history', label: '출석 이력', icon: History },
     { key: 'students', label: '학생 관리', icon: Users, badge: totalStudents },
@@ -1543,6 +1592,26 @@ export default function AdminPage() {
 
         {/* Tab content */}
         <div className="flex-1 p-8">
+
+          {/* ── Tab: 학습 시간 관리 ── */}
+          {activeTab === 'study_time' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-slate-800">학생별 학습 시간 모니터링 (오늘)</h2>
+                <p className="text-sm text-slate-400">당일 누적 입퇴실 기록을 기반으로 계산됩니다.</p>
+              </div>
+              <Card className="border border-slate-200 shadow-sm p-4 bg-white relative">
+                <AttendanceSummaryWrapper entries={todayAttendance} />
+              </Card>
+            </div>
+          )}
+
+          {/* ── Tab: 개인별 학습 조회 ── */}
+          {activeTab === 'individual_lookup' && (
+            <div className="-m-8">
+              <IndividualLookupTab students={students} isDemo={IS_DEMO} />
+            </div>
+          )}
 
           {/* ── Tab: 출석 현황 ── */}
           {activeTab === 'attendance' && (

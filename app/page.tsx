@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Html5Qrcode } from 'html5-qrcode';
 import { cn } from '@/lib/utils';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
+import { AttendanceSummary } from '@/components/AttendanceSummary';
 import { normalizeBarcodeValue } from '@/lib/barcode-utils';
 import { dailyBackupToNotion } from '@/lib/daily-backup';
 import { DEMO_STUDENTS, DEMO_ATTENDANCE_INITIAL } from '@/lib/demo-data';
@@ -38,7 +39,8 @@ export default function Home() {
 
   // ── 추가 state ──
   const [isOnline, setIsOnline] = useState(true);
-  const [checkInOverlay, setCheckInOverlay] = useState<{ name: string; grade: number; classNum: number; num: number; entryType: 'checkin' | 'checkout' } | null>(null);
+  const [checkInOverlay, setCheckInOverlay] = useState<{ name: string; grade: number; classNum: number; num: number; entryType: 'checkin' | 'checkout'; studyDuration?: string } | null>(null);
+  const [rightTab, setRightTab] = useState<'log' | 'summary'>('log');
 
   const isProcessingRef = useRef(false);
   const scannerInstanceRef = useRef<Html5Qrcode | null>(null);
@@ -156,14 +158,23 @@ export default function Home() {
             setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkin' });
             setTimeout(() => setCheckInOverlay(null), 3000);
           } else if (!hasCheckout) {
+            const checkinEntry = demoAttendance.find(e => e.id === checkinKey);
+            const checkinTime = checkinEntry?.timestamp?.toDate ? checkinEntry.timestamp.toDate() : new Date();
+            const durationMs = Date.now() - checkinTime.getTime();
+            const durationMins = Math.floor(durationMs / (1000 * 60));
+            const hours = Math.floor(durationMins / 60);
+            const mins = durationMins % 60;
+            const studyDuration = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+
             setDemoAttendance(prev => [...prev, {
               id: checkoutKey, studentId: student.studentId, studentName: student.name,
               timestamp: fakeTs, date: today, grade: student.grade,
               type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout',
-            }]);
-            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
-            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
-            setTimeout(() => setCheckInOverlay(null), 3000);
+              studyDuration
+            } as AttendanceEntry]);
+            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료! (${studyDuration} 학습)`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout', studyDuration });
+            setTimeout(() => setCheckInOverlay(null), 4000);
           } else {
             setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
           }
@@ -206,17 +217,26 @@ export default function Home() {
             setTimeout(() => setCheckInOverlay(null), 3000);
 
           } else if (!checkoutSnap.exists()) {
+            const checkinData = checkinSnap.data();
+            const checkinTime = checkinData?.timestamp?.toDate ? checkinData.timestamp.toDate() : new Date();
+            const durationMs = Date.now() - checkinTime.getTime();
+            const durationMins = Math.floor(durationMs / (1000 * 60));
+            const hours = Math.floor(durationMins / 60);
+            const mins = durationMins % 60;
+            const studyDuration = hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`;
+
             const batch = writeBatch(db!);
             batch.set(doc(db!, 'attendance_logs', checkoutKey), {
               id: checkoutKey, studentId: student.studentId, studentName: student.name,
               timestamp: serverTimestamp(), date: today, grade: student.grade,
-              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout'
+              type: isFromScanner ? 'scan' : 'keypad', entryType: 'checkout',
+              studyDuration
             });
             await batch.commit();
 
-            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료!`, name: student.name });
-            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout' });
-            setTimeout(() => setCheckInOverlay(null), 3000);
+            setStatus({ type: 'success', message: `${student.name}님, 퇴실 완료! (${studyDuration} 학습)`, name: student.name });
+            setCheckInOverlay({ name: student.name, grade: student.grade, classNum, num, entryType: 'checkout', studyDuration });
+            setTimeout(() => setCheckInOverlay(null), 4000);
 
           } else {
             setStatus({ type: 'warning', message: '이미 퇴실 완료되었습니다.', name: student.name });
@@ -293,11 +313,17 @@ export default function Home() {
             {checkInOverlay.entryType === 'checkin' ? '입실 완료' : '퇴실 완료'}
           </p>
           <p className="text-8xl font-black mb-4 tracking-tight">{checkInOverlay.name}</p>
-          <div className="flex items-center gap-2 bg-white/15 rounded-2xl px-6 py-3">
+          <div className="flex items-center gap-2 bg-white/15 rounded-2xl px-6 py-3 mb-4">
             <p className="text-xl font-bold">
               {checkInOverlay.grade}학년 &nbsp;{checkInOverlay.classNum}반 &nbsp;{checkInOverlay.num}번
             </p>
           </div>
+          {checkInOverlay.studyDuration && (
+            <div className="bg-white/20 text-white rounded-2xl px-8 py-4 backdrop-blur-sm border border-white/30 animate-in fade-in zoom-in duration-500 shadow-2xl">
+              <p className="text-sm font-bold opacity-80 mb-1 text-center">오늘의 학습 시간</p>
+              <p className="text-4xl font-black">{checkInOverlay.studyDuration}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -399,16 +425,35 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── 우측: 실시간 현황 ── */}
-        <div className="glass-card flex flex-col bg-white overflow-hidden">
-          <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-xl font-black text-slate-800">실시간 현황</h2>
-            <span className="font-mono text-sm text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+        {/* ── 우측: 실시간 현황 및 요약 탭 ── */}
+        <div className="glass-card flex flex-col bg-white overflow-hidden shadow-sm">
+          <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="flex gap-6">
+              <button 
+                onClick={() => setRightTab('log')}
+                className={cn("text-xl font-black transition-colors relative", rightTab === 'log' ? "text-slate-800" : "text-slate-400 hover:text-slate-600")}
+              >
+                실시간 기록
+                {rightTab === 'log' && <div className="absolute -bottom-5 left-0 right-0 h-1 bg-[#2672D9] rounded-t-full" />}
+              </button>
+              <button 
+                onClick={() => setRightTab('summary')}
+                className={cn("text-xl font-black transition-colors relative", rightTab === 'summary' ? "text-slate-800" : "text-slate-400 hover:text-slate-600")}
+              >
+                학습 현황
+                {rightTab === 'summary' && <div className="absolute -bottom-5 left-0 right-0 h-1 bg-[#2672D9] rounded-t-full" />}
+              </button>
+            </div>
+            <span className="font-mono text-sm text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
               {currentTime ? format(currentTime, 'HH:mm:ss') : '--:--:--'}
             </span>
           </div>
-          <div className="flex-1 overflow-auto">
-            <AttendanceRoster entries={attendance} />
+          <div className="flex-1 overflow-auto bg-white">
+            {rightTab === 'log' ? (
+              <AttendanceRoster entries={attendance} />
+            ) : (
+              <AttendanceSummary entries={attendance} currentTime={currentTime} />
+            )}
           </div>
         </div>
       </div>

@@ -16,6 +16,7 @@ export interface AttendanceEntry {
   grade: number;
   type: 'scan' | 'keypad';
   entryType: 'checkin' | 'checkout'; // 입실 | 퇴실
+  studyDuration?: string; // e.g. "2시간 30분"
 }
 
 export interface BarcodeMapping {
