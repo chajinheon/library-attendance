@@ -1,12 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { AttendanceEntry } from '@/lib/types';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { UserCheck, ScanBarcode, LogIn, LogOut } from 'lucide-react';
+import { UserCheck, ScanBarcode, LogIn, LogOut, Trash2 } from 'lucide-react';
 
 interface Props {
   entries: AttendanceEntry[];
+  onDelete?: (entry: AttendanceEntry) => void;
 }
 
 const gradeColors = {
@@ -15,7 +17,9 @@ const gradeColors = {
   3: 'bg-orange-100 text-orange-700',
 };
 
-export function AttendanceRoster({ entries }: Props) {
+export function AttendanceRoster({ entries, onDelete }: Props) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-slate-400 py-20">
@@ -36,6 +40,7 @@ export function AttendanceRoster({ entries }: Props) {
     <div className="divide-y divide-slate-100">
       {sorted.map((entry) => {
         const isCheckout = entry.entryType === 'checkout';
+        const isPendingDelete = confirmId === entry.id;
         return (
           <div key={entry.id} className="flex items-center justify-between px-8 py-4 hover:bg-slate-50 transition-colors">
             <div className="flex items-center gap-4">
@@ -75,6 +80,33 @@ export function AttendanceRoster({ entries }: Props) {
                   </p>
                 )}
               </div>
+              {/* 삭제 버튼 */}
+              {onDelete && (
+                isPendingDelete ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { onDelete(entry); setConfirmId(null); }}
+                      className="text-[11px] font-bold bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      삭제
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(null)}
+                      className="text-[11px] font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-lg hover:bg-slate-300 transition-colors"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(entry.id)}
+                    className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                    title="기록 삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )
+              )}
             </div>
           </div>
         );

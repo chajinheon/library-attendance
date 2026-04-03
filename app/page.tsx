@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc, writeBatch, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { syncToNotion } from './actions/sync-notion';
 import { useToast } from '@/hooks/use-toast';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -255,6 +255,25 @@ export default function Home() {
     }
   };
 
+  const handleDeleteEntry = async (entry: AttendanceEntry) => {
+    if (IS_DEMO) {
+      setDemoAttendance(prev => prev.filter(e => e.id !== entry.id));
+      toast({ description: '출석 기록이 삭제되었습니다.' });
+      return;
+    }
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'attendance_logs', entry.id));
+      if (entry.type === 'scan') {
+        deleteDoc(doc(db, 'card_scans', entry.id)).catch(() => {});
+      }
+      toast({ description: '출석 기록이 삭제되었습니다.' });
+    } catch (err) {
+      console.error('[handleDeleteEntry] error:', err);
+      toast({ description: '삭제에 실패했습니다. 다시 시도해주세요.', variant: 'destructive' });
+    }
+  };
+
   useEffect(() => {
     if (input.length === 5) processCheckIn(input, false);
   }, [input]);
@@ -450,7 +469,7 @@ export default function Home() {
           </div>
           <div className="flex-1 overflow-auto bg-white">
             {rightTab === 'log' ? (
-              <AttendanceRoster entries={attendance} />
+              <AttendanceRoster entries={attendance} onDelete={handleDeleteEntry} />
             ) : (
               <AttendanceSummary entries={attendance} currentTime={currentTime} />
             )}
